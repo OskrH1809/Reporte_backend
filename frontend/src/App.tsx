@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, NavLink, Outlet, Route, Routes } from "react-router";
 
 import { Catalogos } from "./pages/Catalogos";
+import { EditorReporte } from "./pages/EditorReporte";
 import { Reportes } from "./pages/Reportes";
 
 const queryClient = new QueryClient();
@@ -32,7 +33,7 @@ export function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Reportes />} />
-            <Route path="reportes/:id" element={<p>Cargando editor…</p>} />
+            <Route path="reportes/:id" element={<EditorReporte />} />
             <Route path="catalogos" element={<Catalogos />} />
           </Route>
         </Routes>
