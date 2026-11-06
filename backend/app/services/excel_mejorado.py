@@ -305,7 +305,10 @@ def _resumen(
         fila,
         [
             ("Colaborador", 1, 3, "left"),
-            *[(nombre[:3], indice, indice, "right") for indice, nombre in enumerate(NOMBRES_DIAS, 4)],
+            *[
+                (nombre[:3], indice, indice, "right")
+                for indice, nombre in enumerate(NOMBRES_DIAS, 4)
+            ],
             ("Total", 10, 12, "right"),
         ],
         filas_colaboradores,
