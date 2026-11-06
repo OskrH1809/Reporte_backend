@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import SessionLocal, get_db
 from app.errors import register_error_handlers
-from app.routers import catalogos, health
+from app.routers import catalogos, health, reportes
 from app.services.semillas import cargar_semillas
 
 settings = get_settings()
@@ -30,6 +30,7 @@ app = FastAPI(
 register_error_handlers(app)
 app.include_router(health.router)
 app.include_router(catalogos.router)
+app.include_router(reportes.router)
 
 if settings.cors_origins:
     app.add_middleware(

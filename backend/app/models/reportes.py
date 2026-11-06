@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import (
     Boolean,
@@ -17,6 +17,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
+if TYPE_CHECKING:
+    from app.models.catalogos import Colaborador, Firmante, Herramienta, Material
+
 
 class Reporte(Base):
     __tablename__ = "reportes"
@@ -27,6 +30,8 @@ class Reporte(Base):
     semana: Mapped[int] = mapped_column(Integer, nullable=False)
     elaborado_por_id: Mapped[int | None] = mapped_column(ForeignKey("firmantes.id"))
     revisado_por_id: Mapped[int | None] = mapped_column(ForeignKey("firmantes.id"))
+    elaborado_por: Mapped["Firmante | None"] = relationship(foreign_keys=[elaborado_por_id])
+    revisado_por: Mapped["Firmante | None"] = relationship(foreign_keys=[revisado_por_id])
     dias: Mapped[list["Dia"]] = relationship(
         back_populates="reporte", cascade="all, delete-orphan", order_by="Dia.dia_semana"
     )
@@ -83,6 +88,7 @@ class Asignacion(Base):
     horas: Mapped[float] = mapped_column(Float, nullable=False)
     horas_manual: Mapped[bool] = mapped_column(Boolean, server_default=false(), nullable=False)
     actividad: Mapped[Actividad] = relationship(back_populates="asignaciones")
+    colaborador: Mapped["Colaborador"] = relationship()
 
 
 class DiaHerramienta(Base):
@@ -91,6 +97,7 @@ class DiaHerramienta(Base):
     dia_id: Mapped[int] = mapped_column(ForeignKey("dias.id", ondelete="CASCADE"), primary_key=True)
     herramienta_id: Mapped[int] = mapped_column(ForeignKey("herramientas.id"), primary_key=True)
     cantidad: Mapped[float] = mapped_column(Float, nullable=False)
+    herramienta: Mapped["Herramienta"] = relationship()
 
 
 class DiaMaterial(Base):
@@ -99,6 +106,7 @@ class DiaMaterial(Base):
     dia_id: Mapped[int] = mapped_column(ForeignKey("dias.id", ondelete="CASCADE"), primary_key=True)
     material_id: Mapped[int] = mapped_column(ForeignKey("materiales.id"), primary_key=True)
     cantidad: Mapped[float] = mapped_column(Float, nullable=False)
+    material: Mapped["Material"] = relationship()
 
 
 class Foto(Base):

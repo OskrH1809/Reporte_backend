@@ -41,6 +41,14 @@ class InvalidInputError(DomainError):
     code = "validation_error"
 
 
+class DuplicateReportError(ConflictError):
+    code = "reporte_duplicado"
+
+
+class SpaceFullError(InvalidInputError):
+    code = "espacio_lleno"
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def handle_domain_error(_request: Request, error: DomainError) -> JSONResponse:
