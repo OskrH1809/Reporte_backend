@@ -15,7 +15,7 @@ from sqlalchemy.orm import object_session
 
 from app.models import Colaborador, Dia, Herramienta, Material, Reporte
 from app.services import fotos
-from app.services.calculos import totales_dia
+from app.services.calculos import jornada_dia, totales_dia
 from app.services.excel_formato import EMU_POR_PIXEL, PLANTILLAS_DIR, texto_seguro
 
 VERDE_OSCURO = "176B2C"
@@ -190,7 +190,7 @@ def _tarjetas(hoja: Worksheet, fila: int, indicadores: list[tuple[str, object]])
 
 
 def _totales_reporte(reporte: Reporte) -> list[tuple[int, float, int, list[str]]]:
-    return [totales_dia(dia, 5 if dia.dia_semana == 5 else 8) for dia in reporte.dias]
+    return [totales_dia(dia, jornada_dia(dia)) for dia in reporte.dias]
 
 
 def _resumen(

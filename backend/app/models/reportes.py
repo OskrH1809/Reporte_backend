@@ -20,6 +20,8 @@ from app.models.base import Base
 if TYPE_CHECKING:
     from app.models.catalogos import Colaborador, Firmante, Herramienta, Material
 
+TEXTO_FOTOS_PREDETERMINADO = "Fotos antes y después de la actividad realizada"
+
 
 class Reporte(Base):
     __tablename__ = "reportes"
@@ -49,7 +51,9 @@ class Dia(Base):
     dia_semana: Mapped[int] = mapped_column(Integer, nullable=False)
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     observacion: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    texto_fotos: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    texto_fotos: Mapped[str] = mapped_column(
+        Text, default=TEXTO_FOTOS_PREDETERMINADO, nullable=False
+    )
     reporte: Mapped[Reporte] = relationship(back_populates="dias")
     actividades: Mapped[list["Actividad"]] = relationship(
         back_populates="dia", cascade="all, delete-orphan", order_by="Actividad.letra"

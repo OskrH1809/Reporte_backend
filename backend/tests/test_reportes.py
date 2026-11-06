@@ -78,7 +78,7 @@ def test_guardar_dia_reparte_horas_y_calcula_totales(
 
 
 def test_guardar_dia_dos_veces(client: TestClient, session: Session, faker: Faker) -> None:
-    reporte_id = _crear_reporte(client, semana=43)
+    reporte_id = _crear_reporte(client, semana=49)
     colaborador = _colaborador(session, faker)
     herramienta, material = _cantidades(session, faker)
     payload = {
@@ -106,7 +106,7 @@ def test_guardar_dia_dos_veces(client: TestClient, session: Session, faker: Fake
 def test_guardar_dia_conserva_horas_manuales(
     client: TestClient, session: Session, faker: Faker
 ) -> None:
-    reporte_id = _crear_reporte(client, semana=44)
+    reporte_id = _crear_reporte(client, semana=50)
     colaborador = _colaborador(session, faker)
     payload = {
         "actividades": [
@@ -162,7 +162,16 @@ def test_guardar_sabado_y_advertencia_manual(
     )
 
     assert sabado.json()["actividades"][0]["asignaciones"][0]["horas"] == 5
-    assert exceso.json()["advertencias"]
+    assert exceso.json()["advertencias"] == [f"{colaborador.nombre} supera la jornada de 8 horas"]
+
+
+def test_dia_nuevo_incluye_texto_fotos_predeterminado(client: TestClient) -> None:
+    reporte_id = _crear_reporte(client, semana=48)
+
+    response = client.get(f"/api/reportes/{reporte_id}/dias/0")
+
+    assert response.status_code == 200
+    assert response.json()["texto_fotos"] == "Fotos antes y después de la actividad realizada"
 
 
 def test_foto_invalida_y_mayor_al_maximo(client: TestClient) -> None:

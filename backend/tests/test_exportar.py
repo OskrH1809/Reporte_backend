@@ -16,7 +16,7 @@ def _crear_datos(
     client: TestClient, session: Session, faker: Faker, semana: int = 45
 ) -> tuple[int, str]:
     colaborador = Colaborador(nombre=faker.name(), orden=100 + semana)
-    material = Material(nombre=faker.word(), unidad="unidad", orden=100 + semana)
+    material = Material(nombre=f"Material-{faker.uuid4()}", unidad="unidad", orden=100 + semana)
     session.add_all([colaborador, material])
     session.commit()
     response = client.post("/api/reportes", json={"anio": 2026, "semana": semana})

@@ -63,8 +63,8 @@ El reporte usado para la prueba HTTP fue sintético (semana 52 de 2025) y el arc
 |---|---|---|---|
 | 1 | Validación de entrada | Esquemas Pydantic, semanas válidas, catálogos activos y nombres de archivo normalizados. | `test_tipo_invalido_y_nombre_vacio`, `test_reporte_duplicado_devuelve_codigo` |
 | 2 | Acceso a registros | Respuestas 404 para ids inexistentes y asociación de fotos al día del reporte. | `test_exportar_reporte_inexistente`, `test_foto_invalida_y_mayor_al_maximo` |
-| 3 | Subidas seguras | Lista permitida de MIME/extensiones, máximo de 10 MB y nombres generados por UUID. | `test_foto_invalida_y_mayor_al_maximo` |
-| 4 | Capacidad de disco | Límite configurable y respuesta 507 antes de escribir. | `test_espacio_lleno` |
+| 3 | Subidas seguras | Lista permitida de MIME/extensiones, máximo de 15 MB y nombres generados por UUID. | `test_foto_invalida_y_mayor_al_maximo` |
+| 4 | Capacidad del espacio | Límite de fotos por espacio y respuesta 422 `espacio_lleno` antes de escribir. | `test_espacio_lleno` |
 | 5 | Ejecución y exposición local | Contenedor API baja privilegios a `app`; servicio publicado solo en `127.0.0.1`; LibreOffice usa argumentos fijos sin shell. | `make up`, revisión del diff, Bandit |
 
 Escaneos: gitleaks ✅ · bandit ✅ (sin hallazgos medios/altos) · pip-audit ✅ · npm audit ✅ para el umbral alto (10 vulnerabilidades moderadas transitivas sin corrección no disruptiva disponible).

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import object_session
 
 from app.models import Colaborador, Dia, Herramienta, Reporte
+from app.services.calculos import jornada_dia
 
 PLANTILLAS_DIR = Path(__file__).resolve().parents[1] / "plantillas"
 NOMBRES_DIAS = ("Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado")
@@ -112,7 +113,7 @@ def _llenar_comunes(
         hoja.cell(fila, 2, texto_seguro(colaborador.nombre))
         hoja.cell(fila, 8, ", ".join(asignaciones[colaborador.id]))
     actividades = {actividad.letra: actividad for actividad in dia.actividades}
-    jornada = 5 if dia.dia_semana == 5 else 8
+    jornada = jornada_dia(dia)
     for columna, letra in enumerate(("A", "B", "C"), start=13):
         hoja.cell(11, columna, f'=COUNTIF($H$10:$H$22,"*"&{get_column_letter(columna)}$10&"*")')
         actividad = actividades.get(letra)

@@ -24,6 +24,7 @@ from app.models import (
     Material,
     Reporte,
 )
+from app.models.reportes import TEXTO_FOTOS_PREDETERMINADO
 from app.schemas.reportes import (
     ActividadRead,
     AsignacionRead,
@@ -35,7 +36,7 @@ from app.schemas.reportes import (
     ReporteUpdate,
 )
 from app.services import fotos
-from app.services.calculos import recalcular_horas, totales_dia
+from app.services.calculos import jornada_dia, recalcular_horas, totales_dia
 
 DatabaseSession = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/api", tags=["reportes"])
@@ -77,12 +78,8 @@ def obtener_dia(session: Session, reporte_id: int, dia_semana: int) -> Dia:
     return dia
 
 
-def _jornada(dia: Dia) -> float:
-    return settings.jornada_sabado if dia.dia_semana == 5 else settings.jornada_semana
-
-
 def serializar_dia(dia: Dia) -> DiaRead:
-    personas, horas_hombre, numero_actividades, advertencias = totales_dia(dia, _jornada(dia))
+    personas, horas_hombre, numero_actividades, advertencias = totales_dia(dia, jornada_dia(dia))
     actividades = []
     for actividad in dia.actividades:
         asignaciones = [
@@ -156,7 +153,7 @@ def serializar_reporte(reporte: Reporte) -> ReporteRead:
         fecha_fin=reporte.dias[-1].fecha,
         elaborado_por_id=reporte.elaborado_por_id,
         revisado_por_id=reporte.revisado_por_id,
-        horas_hombre=round(sum(totales_dia(dia, _jornada(dia))[1] for dia in reporte.dias), 2),
+        horas_hombre=round(sum(totales_dia(dia, jornada_dia(dia))[1] for dia in reporte.dias), 2),
     )
 
 
@@ -171,7 +168,12 @@ def crear_reporte(data: ReporteCreate, session: DatabaseSession) -> ReporteRead:
     lunes = date.fromisocalendar(data.anio, data.semana, 1)
     reporte = Reporte(anio=data.anio, semana=data.semana)
     reporte.dias = [
-        Dia(dia_semana=indice, fecha=lunes + timedelta(days=indice)) for indice in range(6)
+        Dia(
+            dia_semana=indice,
+            fecha=lunes + timedelta(days=indice),
+            texto_fotos=TEXTO_FOTOS_PREDETERMINADO,
+        )
+        for indice in range(6)
     ]
     session.add(reporte)
     try:
@@ -246,7 +248,7 @@ def guardar_dia(
         if session.get(Material, entrada.material_id) is None:
             raise NotFoundError("Material no encontrado")
         dia.materiales.append(DiaMaterial(**entrada.model_dump()))
-    recalcular_horas(dia, _jornada(dia))
+    recalcular_horas(dia, jornada_dia(dia))
     session.commit()
     return serializar_dia(obtener_dia(session, reporte_id, dia_semana))
 

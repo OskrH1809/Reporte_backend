@@ -9,7 +9,9 @@ from app.services.excel_formato import generar_formato
 
 
 def _reporte(session: Session, faker: Faker, semana: int = 43) -> Reporte:
-    colaboradores = [Colaborador(nombre=faker.name(), orden=indice) for indice in range(1, 3)]
+    colaboradores = [
+        Colaborador(nombre=faker.name(), orden=-1000 - semana + indice) for indice in range(1, 3)
+    ]
     herramienta = Herramienta(nombre=faker.word(), orden=1)
     reporte = Reporte(anio=2026, semana=semana)
     reporte.dias = [
