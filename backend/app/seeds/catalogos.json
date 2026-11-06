@@ -1,0 +1,89 @@
+{
+  "colaboradores": [
+    "Hugo Erazo",
+    "Pedro Rodríguez",
+    "Olga Mendoza",
+    "Oswaldo Ordoñez",
+    "José Beltrán",
+    "Francisco Beltrán",
+    "Noel Ordoñez",
+    "Ariel Vargas",
+    "Héctor Ordoñez",
+    "Roberto Ordoñez",
+    "Carlos Mendoza",
+    "Yesiel Vargas",
+    "Mauricio Maradiaga"
+  ],
+  "herramientas": [
+    "Utensilios (termos y Botiquín )",
+    "Carreta",
+    "pala",
+    "Azadón",
+    "Piocha",
+    "Barra",
+    "Rastrillo",
+    "Machete corvo",
+    "Machete Cuma",
+    "Herramientas de albañilería",
+    "Herramientas de pintura",
+    "Conos",
+    "Moto guadañas",
+    "NISSAN FRONTIER HCQ 7307/MITSUBICHI blanco HCR 1908"
+  ],
+  "firmantes": [
+    {
+      "nombre": "Hugo Adalid Erazo",
+      "tipo": "elabora"
+    },
+    {
+      "nombre": "Marcos Luna",
+      "tipo": "revisa"
+    }
+  ],
+  "materiales": [
+    {
+      "nombre": "Agua para riego",
+      "unidad": "litro"
+    },
+    {
+      "nombre": "Gasolina",
+      "unidad": "galón"
+    },
+    {
+      "nombre": "Aceite 2 tiempos",
+      "unidad": "litro"
+    },
+    {
+      "nombre": "Hilo para motoguadaña",
+      "unidad": "metro"
+    },
+    {
+      "nombre": "Insecticida",
+      "unidad": "litro"
+    },
+    {
+      "nombre": "Desinfectante",
+      "unidad": "litro"
+    },
+    {
+      "nombre": "Cloro",
+      "unidad": "litro"
+    },
+    {
+      "nombre": "Jabón multiuso",
+      "unidad": "unidad"
+    },
+    {
+      "nombre": "Bolsas para basura",
+      "unidad": "unidad"
+    },
+    {
+      "nombre": "Cemento",
+      "unidad": "bolsa"
+    },
+    {
+      "nombre": "Pintura",
+      "unidad": "galón"
+    }
+  ]
+}

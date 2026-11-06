@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reportes-servicios-api"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.162.0",
+  "uvicorn[standard]==0.54.0",
+  "sqlalchemy==2.1.6",
+  "alembic==1.20.1",
+  "pydantic==2.14.2",
+  "pydantic-settings==2.16.2",
+  "python-multipart==0.0.33",
+  "openpyxl==3.1.5",
+  "Pillow==12.1.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.2.0",
+  "httpx==0.28.1",
+  "faker==40.44.0",
+  "ruff==0.17.3",
+  "bandit==1.9.4",
+  "pip-audit==2.10.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "N", "SIM"]
+per-file-ignores = { "tests/*" = ["S101"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
