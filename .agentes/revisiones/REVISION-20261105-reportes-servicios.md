@@ -30,3 +30,19 @@ Medidas 1, 2, 7, 8, 13, 14, 15, 16, 17, 18 y 20: implementadas y con prueba. Sin
 
 ## Veredicto
 `cambios`: ver Iteración 1 del plan.
+
+## Iteración 1 — revisión y relevo
+Codex aplicó I1 a I5 y se quedó sin límite. Oscar pidió a Claude terminar lo pendiente, por lo que Claude corrigió directamente en la rama:
+
+| Tarea | Commit | Hallazgo |
+|---|---|---|
+| I6 | `aef335c` + formato | Título de fotos separado de sus imágenes, tira de imagen en la página anterior, encabezado "Miércoles" cortado |
+| I7 | `b03c3f7` | **Alta:** Guardar respondía 422 desde el navegador con cualquier persona seleccionada: enviaba campos de lectura y la API usa `extra="forbid"`. Las pruebas simulaban la API |
+| I8 | `e895f5b` | Selector fuera de su tarjeta, pestaña activa sin resaltar, lista centrada verticalmente |
+
+Verificación final: `make check` con salida 0 (25 pruebas backend, 13 frontend, gitleaks, bandit y pip-audit sin hallazgos; `npm audit` con 10 moderadas de la cadena de eslint, sin altas). Prueba en Chromium real: selección de personas, horas en vivo, foto sin perder borrador, guardar, recargar y guardar de nuevo, sin errores de consola. PDF de la semana 38 revisado página por página.
+
+Lección: las pruebas de componentes con la API simulada no detectaron que Guardar estaba roto; un flujo de interfaz requiere prueba en navegador contra la API real.
+
+## Veredicto final
+`aceptado`. Rama lista para que Oscar decida el merge. Fuera de alcance acordado: marcas del mapa.

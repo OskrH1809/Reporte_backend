@@ -1,6 +1,6 @@
 ---
 id: PLAN-20261105-reportes-servicios
-estado: aprobado
+estado: cerrado
 rama: agente/reportes-servicios
 stack: fastapi + react
 zona_protegida: no
