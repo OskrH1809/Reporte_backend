@@ -79,10 +79,38 @@ export const editarReporte = (
   });
 export const verDia = (id: number, dia: number) =>
   apiRequest<Dia>(`/reportes/${id}/dias/${dia}`);
+// La API rechaza campos desconocidos: se envían solo los editables, no los de lectura.
+export function serializarDia(input: DiaInput): DiaInput {
+  return {
+    observacion: input.observacion,
+    texto_fotos: input.texto_fotos,
+    herramientas: input.herramientas.map(({ herramienta_id, cantidad }) => ({
+      herramienta_id,
+      cantidad,
+    })),
+    materiales: input.materiales.map(({ material_id, cantidad }) => ({
+      material_id,
+      cantidad,
+    })),
+    actividades: input.actividades.map(
+      ({ letra, descripcion, asignaciones }) => ({
+        letra,
+        descripcion,
+        asignaciones: asignaciones.map(
+          ({ colaborador_id, horas, horas_manual }) => ({
+            colaborador_id,
+            horas,
+            horas_manual,
+          }),
+        ),
+      }),
+    ),
+  };
+}
 export const guardarDia = (id: number, dia: number, input: DiaInput) =>
   apiRequest<Dia>(`/reportes/${id}/dias/${dia}`, {
     method: "PUT",
-    body: JSON.stringify(input),
+    body: JSON.stringify(serializarDia(input)),
   });
 export async function subirFoto(
   id: number,
