@@ -167,6 +167,13 @@ def test_mejorado_distribuye_fotos_y_formulas_sin_superposicion(
     assert len(filas_fotos) == 12
     assert min(filas_fotos) > fila_evidencia
     assert any(salto.id < min(filas_fotos) for salto in hoja.row_breaks.brk)
+    saltos = {salto.id for salto in hoja.row_breaks.brk}
+    for fila in filas_fotos:
+        titulo = hoja.cell(fila - 1, 1).value
+        if titulo in {"Actividad A", "Actividad B", "Actividad C", "Antes y después"}:
+            assert fila - 1 not in saltos
+    for imagen in hoja._images[1:]:
+        assert imagen.anchor._from.rowOff > 0
     for imagen in hoja._images:
         proporcion_real = imagen.width / imagen.height
         proporcion_anclada = imagen.anchor.ext.cx / imagen.anchor.ext.cy

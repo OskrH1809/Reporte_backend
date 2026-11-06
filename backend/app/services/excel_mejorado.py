@@ -23,6 +23,10 @@ VERDE_CLARO = "EAF7ED"
 BLANCO = "FFFFFF"
 BORDE = Side(style="thin", color="B7C8BA")
 NOMBRES_DIAS = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
+FILAS_FOTOS_POR_PAGINA = 3
+MARGEN_MAPA_PX = 16
+# LibreOffice pinta en la página anterior una imagen anclada al borde de la fila tras un salto.
+MARGEN_SUPERIOR_PX = 4
 ETIQUETAS_FOTOS = {
     "A": "Actividad A",
     "B": "Actividad B",
@@ -142,7 +146,7 @@ def _anclar_imagen(
             col=columna,
             colOff=desplazamiento_x * EMU_POR_PIXEL,
             row=fila - 1,
-            rowOff=desplazamiento_y * EMU_POR_PIXEL,
+            rowOff=(desplazamiento_y + MARGEN_SUPERIOR_PX) * EMU_POR_PIXEL,
         ),
         ext=XDRPositiveSize2D(
             cx=imagen.width * EMU_POR_PIXEL,
@@ -301,7 +305,7 @@ def _resumen(
         fila,
         [
             ("Colaborador", 1, 3, "left"),
-            *[(nombre, indice, indice, "right") for indice, nombre in enumerate(NOMBRES_DIAS, 4)],
+            *[(nombre[:3], indice, indice, "right") for indice, nombre in enumerate(NOMBRES_DIAS, 4)],
             ("Total", 10, 12, "right"),
         ],
         filas_colaboradores,
@@ -372,6 +376,9 @@ def _seccion_fotos(hoja: Worksheet, dia: Dia, fila: int) -> int:
         grupo = [foto for foto in fotos_existentes if foto.espacio == espacio]
         if not grupo:
             continue
+        # El salto va antes del título para que nunca quede separado de sus fotos.
+        if filas_fotos and filas_fotos % FILAS_FOTOS_POR_PAGINA == 0:
+            hoja.row_breaks.append(Break(id=fila - 1))
         hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=12)
         hoja.cell(fila, 1, ETIQUETAS_FOTOS[espacio]).font = Font(
             name="Arial", bold=True, color=VERDE_OSCURO
@@ -379,7 +386,7 @@ def _seccion_fotos(hoja: Worksheet, dia: Dia, fila: int) -> int:
         hoja.row_dimensions[fila].height = 18
         fila += 1
         for indice in range(0, len(grupo), 2):
-            if filas_fotos and filas_fotos % 3 == 0:
+            if indice and filas_fotos % FILAS_FOTOS_POR_PAGINA == 0:
                 hoja.row_breaks.append(Break(id=fila - 1))
             hoja.row_dimensions[fila].height = 195
             for posicion, foto in enumerate(grupo[indice : indice + 2]):
@@ -401,7 +408,7 @@ def _mapa_observacion_firmas(hoja: Worksheet, reporte: Reporte, dia: Dia, fila: 
     hoja.row_breaks.append(Break(id=fila - 1))
     mapa = ExcelImage(PLANTILLAS_DIR / "mapa.png")
     alto_mapa = round(420 * mapa.height / mapa.width)
-    hoja.row_dimensions[fila].height = alto_mapa * 72 / 96
+    hoja.row_dimensions[fila].height = (alto_mapa + MARGEN_MAPA_PX) * 72 / 96
     _anclar_imagen(hoja, PLANTILLAS_DIR / "mapa.png", fila, 0, 420, alto_mapa, 850)
     fila += 1
     fila = _tabla(
