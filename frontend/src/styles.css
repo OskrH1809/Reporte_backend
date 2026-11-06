@@ -14,9 +14,10 @@ body {
 }
 
 main {
+  width: 100%;
   max-width: 1200px;
   padding: 2rem;
-  margin: auto;
+  margin: 0 auto;
 }
 
 button,
@@ -67,6 +68,16 @@ button {
 .tabs,
 .inline-form {
   margin-bottom: 1.5rem;
+}
+.tabs button[aria-selected="false"] {
+  color: #176b2c;
+  background: white;
+}
+.tabs button[aria-selected="true"] {
+  background: #2db34a;
+}
+select {
+  max-width: 100%;
 }
 .inline-form label {
   display: grid;
