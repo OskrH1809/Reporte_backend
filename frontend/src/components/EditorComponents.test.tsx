@@ -1,11 +1,36 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import type { Catalogo } from "../api/catalogos";
+import { type Catalogo, listarCatalogo } from "../api/catalogos";
+import {
+  editarReporte,
+  eliminarFoto,
+  guardarDia,
+  subirFotos,
+  verDia,
+  verReporte,
+} from "../api/reportes";
+import { EditorReporte } from "../pages/EditorReporte";
 import { SelectorColaboradores } from "./SelectorColaboradores";
 import { SelectorFotos } from "./SelectorFotos";
 import { TablaCantidades } from "./TablaCantidades";
+
+vi.mock("../api/catalogos", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/catalogos")>()),
+  listarCatalogo: vi.fn(),
+}));
+vi.mock("../api/reportes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/reportes")>()),
+  editarReporte: vi.fn(),
+  eliminarFoto: vi.fn(),
+  guardarDia: vi.fn(),
+  subirFotos: vi.fn(),
+  verDia: vi.fn(),
+  verReporte: vi.fn(),
+}));
 
 const catalogo: Catalogo = {
   id: 1,
@@ -17,6 +42,68 @@ const catalogo: Catalogo = {
 };
 
 afterEach(cleanup);
+
+const dia = {
+  id: 1,
+  dia_semana: 0,
+  fecha: "2026-09-14",
+  observacion: "",
+  texto_fotos: "",
+  actividades: [],
+  herramientas: [],
+  materiales: [],
+  fotos: [],
+  personas: 0,
+  horas_hombre: 0,
+  numero_actividades: 0,
+  advertencias: [],
+};
+
+function paginaEditor() {
+  const cliente = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={cliente}>
+      <MemoryRouter initialEntries={["/reportes/1"]}>
+        <Routes>
+          <Route path="/reportes/:id" element={<EditorReporte />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(listarCatalogo).mockResolvedValue([]);
+  vi.mocked(verReporte).mockResolvedValue({
+    id: 1,
+    anio: 2026,
+    semana: 38,
+    codigo: "CH-RSG-38-2026",
+    fecha_inicio: "2026-09-14",
+    fecha_fin: "2026-09-19",
+    elaborado_por_id: null,
+    revisado_por_id: null,
+    horas_hombre: 0,
+  });
+  vi.mocked(verDia).mockResolvedValue(dia);
+  vi.mocked(guardarDia).mockResolvedValue(dia);
+  vi.mocked(editarReporte).mockResolvedValue({
+    id: 1,
+    anio: 2026,
+    semana: 38,
+    codigo: "CH-RSG-38-2026",
+    fecha_inicio: "2026-09-14",
+    fecha_fin: "2026-09-19",
+    elaborado_por_id: null,
+    revisado_por_id: null,
+    horas_hombre: 0,
+  });
+  vi.mocked(subirFotos).mockResolvedValue();
+  vi.mocked(eliminarFoto).mockResolvedValue();
+});
 
 it("selecciona un colaborador", async () => {
   const onChange = vi.fn();
@@ -75,10 +162,45 @@ it("muestra el contador y bloquea un espacio lleno", () => {
           url: "/api/fotos/2/archivo",
         },
       ]}
+      subiendo={false}
       onSubir={vi.fn()}
       onEliminar={vi.fn()}
     />,
   );
   expect(screen.getByText("2/2")).toBeInTheDocument();
   expect(screen.getByLabelText("Fotos Actividad A")).toBeDisabled();
+});
+
+it("conserva el borrador después de subir una foto", async () => {
+  const usuario = userEvent.setup();
+  paginaEditor();
+  const descripcion = (await screen.findAllByLabelText("Descripción"))[0]!;
+  await usuario.type(descripcion, "Descripción sintética");
+  await usuario.upload(
+    screen.getByLabelText("Fotos Actividad A"),
+    new File(["imagen sintética"], "sintetica.png", { type: "image/png" }),
+  );
+  await waitFor(() => expect(subirFotos).toHaveBeenCalledOnce());
+  await usuario.click(screen.getByRole("button", { name: "Guardar" }));
+  expect(guardarDia).toHaveBeenCalledWith(
+    1,
+    0,
+    expect.objectContaining({
+      actividades: [
+        expect.objectContaining({ descripcion: "Descripción sintética" }),
+      ],
+    }),
+  );
+});
+
+it("muestra el error al subir una foto", async () => {
+  vi.mocked(subirFotos).mockRejectedValue(new Error("Fallo sintético"));
+  const usuario = userEvent.setup();
+  paginaEditor();
+  await screen.findAllByLabelText("Descripción");
+  await usuario.upload(
+    screen.getByLabelText("Fotos Actividad A"),
+    new File(["imagen sintética"], "sintetica.png", { type: "image/png" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("Fallo sintético");
 });

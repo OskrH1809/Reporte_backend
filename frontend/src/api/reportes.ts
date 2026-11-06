@@ -98,5 +98,13 @@ export async function subirFoto(
     body: datos,
   });
 }
+export async function subirFotos(
+  id: number,
+  dia: number,
+  espacio: Foto["espacio"],
+  archivos: File[],
+): Promise<void> {
+  for (const archivo of archivos) await subirFoto(id, dia, espacio, archivo);
+}
 export const eliminarFoto = (id: number) =>
   apiRequest<void>(`/fotos/${id}`, { method: "DELETE" });

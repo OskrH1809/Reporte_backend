@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 
 import { listarCatalogo } from "../api/catalogos";
@@ -9,13 +9,14 @@ import {
   editarReporte,
   eliminarFoto,
   guardarDia,
-  subirFoto,
+  subirFotos,
   verDia,
   verReporte,
 } from "../api/reportes";
 import { SelectorColaboradores } from "../components/SelectorColaboradores";
 import { SelectorFotos } from "../components/SelectorFotos";
 import { TablaCantidades } from "../components/TablaCantidades";
+import { calcularHoras } from "../calculos";
 
 const nombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const espacios = [
@@ -42,6 +43,9 @@ export function EditorReporte() {
   const [diaActual, setDiaActual] = useState(0);
   const [borrador, setBorrador] = useState<DiaInput>(vacio);
   const [sucio, setSucio] = useState(false);
+  const [errorFotos, setErrorFotos] = useState<Error>();
+  const [subiendoEspacio, setSubiendoEspacio] = useState<string>();
+  const diaInicializado = useRef<number | undefined>(undefined);
   const queryClient = useQueryClient();
   const reporte = useQuery({
     queryKey: ["reporte", id],
@@ -68,8 +72,9 @@ export function EditorReporte() {
     queryFn: () => listarCatalogo("firmantes"),
   });
   useEffect(() => {
-    if (!dia.data) return;
+    if (!dia.data || diaInicializado.current === diaActual) return;
     const datos = dia.data;
+    diaInicializado.current = diaActual;
     queueMicrotask(() => {
       const existentes = new Map(
         datos.actividades.map((item) => [item.letra, item]),
@@ -90,7 +95,7 @@ export function EditorReporte() {
       });
       setSucio(false);
     });
-  }, [dia.data]);
+  }, [dia.data, diaActual]);
   const guardar = useMutation({
     mutationFn: () =>
       guardarDia(id, diaActual, {
@@ -101,6 +106,23 @@ export function EditorReporte() {
       }),
     onSuccess: (resultado) => {
       queryClient.setQueryData(["dia", id, diaActual], resultado);
+      const existentes = new Map(
+        resultado.actividades.map((item) => [item.letra, item]),
+      );
+      setBorrador({
+        observacion: resultado.observacion,
+        texto_fotos: resultado.texto_fotos,
+        herramientas: resultado.herramientas,
+        materiales: resultado.materiales,
+        actividades: (["A", "B", "C"] as const).map(
+          (letra) =>
+            existentes.get(letra) ?? {
+              letra,
+              descripcion: "",
+              asignaciones: [],
+            },
+        ),
+      });
       setSucio(false);
     },
   });
@@ -113,6 +135,10 @@ export function EditorReporte() {
       queryClient.invalidateQueries({ queryKey: ["reporte", id] }),
   });
   const fotos = dia.data?.fotos ?? [];
+  const actividadesCalculadas = calcularHoras(
+    borrador.actividades,
+    diaActual === 5 ? 5 : 8,
+  );
   const cambiar = (valor: DiaInput) => {
     setBorrador(valor);
     setSucio(true);
@@ -128,10 +154,15 @@ export function EditorReporte() {
   function cambiarDia(nuevo: number) {
     if (sucio && !window.confirm("Hay cambios sin guardar. ¿Cambiar de día?"))
       return;
+    diaInicializado.current = undefined;
     setDiaActual(nuevo);
   }
   const error =
-    reporte.error ?? dia.error ?? guardar.error ?? editarFirmas.error;
+    reporte.error ??
+    dia.error ??
+    guardar.error ??
+    editarFirmas.error ??
+    errorFotos;
   return (
     <section>
       <header className="editor-header">
@@ -206,7 +237,7 @@ export function EditorReporte() {
           {error.message}
         </p>
       ) : null}
-      {borrador.actividades.map((actividad, indice) => (
+      {actividadesCalculadas.map((actividad, indice) => (
         <section className="actividad" key={actividad.letra}>
           <h2>Actividad {actividad.letra}</h2>
           <label>
@@ -261,19 +292,41 @@ export function EditorReporte() {
             etiqueta={etiqueta}
             maximo={maximo}
             fotos={fotos}
-            onSubir={(archivo) => {
-              void subirFoto(id, diaActual, espacio, archivo).then(() =>
-                queryClient.invalidateQueries({
-                  queryKey: ["dia", id, diaActual],
-                }),
-              );
+            subiendo={subiendoEspacio === espacio}
+            onSubir={(archivos) => {
+              setErrorFotos(undefined);
+              setSubiendoEspacio(espacio);
+              void subirFotos(id, diaActual, espacio, archivos)
+                .catch((error: unknown) =>
+                  setErrorFotos(
+                    error instanceof Error
+                      ? error
+                      : new Error("Error al subir la foto"),
+                  ),
+                )
+                .finally(() => {
+                  setSubiendoEspacio(undefined);
+                  void queryClient.invalidateQueries({
+                    queryKey: ["dia", id, diaActual],
+                  });
+                });
             }}
             onEliminar={(fotoId) => {
-              void eliminarFoto(fotoId).then(() =>
-                queryClient.invalidateQueries({
-                  queryKey: ["dia", id, diaActual],
-                }),
-              );
+              setErrorFotos(undefined);
+              void eliminarFoto(fotoId)
+                .catch((error: unknown) =>
+                  setErrorFotos(
+                    error instanceof Error
+                      ? error
+                      : new Error("Error al eliminar la foto"),
+                  ),
+                )
+                .finally(
+                  () =>
+                    void queryClient.invalidateQueries({
+                      queryKey: ["dia", id, diaActual],
+                    }),
+                );
             }}
           />
         ))}
@@ -297,8 +350,28 @@ export function EditorReporte() {
         />
       </label>
       <aside className="totales">
-        <strong>Personas: {dia.data?.personas ?? 0}</strong>
-        <strong>Horas-hombre: {dia.data?.horas_hombre ?? 0}</strong>
+        <strong>
+          Personas:{" "}
+          {
+            new Set(
+              actividadesCalculadas.flatMap((actividad) =>
+                actividad.asignaciones.map((item) => item.colaborador_id),
+              ),
+            ).size
+          }
+        </strong>
+        <strong>
+          Horas-hombre:{" "}
+          {actividadesCalculadas.reduce(
+            (total, actividad) =>
+              total +
+              actividad.asignaciones.reduce(
+                (subtotal, item) => subtotal + (item.horas ?? 0),
+                0,
+              ),
+            0,
+          )}
+        </strong>
         {dia.data?.advertencias.map((aviso) => (
           <p key={aviso}>{aviso}</p>
         ))}

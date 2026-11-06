@@ -5,7 +5,8 @@ interface Props {
   etiqueta: string;
   maximo: number;
   fotos: Foto[];
-  onSubir: (archivo: File) => void;
+  subiendo?: boolean;
+  onSubir: (archivos: File[]) => void;
   onEliminar: (id: number) => void;
 }
 
@@ -14,6 +15,7 @@ export function SelectorFotos({
   etiqueta,
   maximo,
   fotos,
+  subiendo = false,
   onSubir,
   onEliminar,
 }: Props) {
@@ -29,14 +31,20 @@ export function SelectorFotos({
       <input
         aria-label={`Fotos ${etiqueta}`}
         type="file"
+        multiple
         accept="image/jpeg,image/png,image/webp"
-        disabled={propias.length >= maximo}
+        disabled={propias.length >= maximo || subiendo}
         onChange={(event) => {
-          const archivo = event.target.files?.[0];
-          if (archivo) onSubir(archivo);
+          const disponibles = maximo - propias.length;
+          const archivos = Array.from(event.target.files ?? []).slice(
+            0,
+            disponibles,
+          );
+          if (archivos.length) onSubir(archivos);
           event.target.value = "";
         }}
       />
+      {subiendo ? <p>Subiendo…</p> : null}
       <div className="fotos-grid">
         {propias.map((foto) => (
           <figure key={foto.id}>
