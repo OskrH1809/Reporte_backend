@@ -5,14 +5,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.db import SessionLocal, get_db
 from app.errors import register_error_handlers
-from app.routers import health
+from app.routers import catalogos, health
+from app.services.semillas import cargar_semillas
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    if settings.environment != "test" and get_db not in _app.dependency_overrides:
+        with SessionLocal() as session:
+            cargar_semillas(session)
     yield
 
 
@@ -24,6 +29,7 @@ app = FastAPI(
 )
 register_error_handlers(app)
 app.include_router(health.router)
+app.include_router(catalogos.router)
 
 if settings.cors_origins:
     app.add_middleware(

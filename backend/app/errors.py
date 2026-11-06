@@ -36,6 +36,11 @@ class FileTooLargeError(DomainError):
     code = "file_too_large"
 
 
+class InvalidInputError(DomainError):
+    status_code = 422
+    code = "validation_error"
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def handle_domain_error(_request: Request, error: DomainError) -> JSONResponse:
