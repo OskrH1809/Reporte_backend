@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy.orm import Session
 
-from app.models import Colaborador
+from app.models import Colaborador, Herramienta, Material
 from app.services import fotos
 
 
@@ -14,6 +14,14 @@ def _colaborador(session: Session, faker: Faker) -> Colaborador:
     session.add(registro)
     session.commit()
     return registro
+
+
+def _cantidades(session: Session, faker: Faker) -> tuple[Herramienta, Material]:
+    herramienta = Herramienta(nombre=faker.word(), orden=1)
+    material = Material(nombre=faker.word(), orden=1, unidad="unidad")
+    session.add_all([herramienta, material])
+    session.commit()
+    return herramienta, material
 
 
 def _crear_reporte(client: TestClient, anio: int = 2026, semana: int = 38) -> int:
@@ -67,6 +75,58 @@ def test_guardar_dia_reparte_horas_y_calcula_totales(
     assert horas == [4, 4]
     assert response.json()["horas_hombre"] == 8
     assert response.json()["numero_actividades"] == 2
+
+
+def test_guardar_dia_dos_veces(client: TestClient, session: Session, faker: Faker) -> None:
+    reporte_id = _crear_reporte(client, semana=43)
+    colaborador = _colaborador(session, faker)
+    herramienta, material = _cantidades(session, faker)
+    payload = {
+        "actividades": [
+            {
+                "letra": "A",
+                "descripcion": faker.sentence(),
+                "asignaciones": [{"colaborador_id": colaborador.id}],
+            }
+        ],
+        "herramientas": [{"herramienta_id": herramienta.id, "cantidad": 2}],
+        "materiales": [{"material_id": material.id, "cantidad": 3}],
+    }
+
+    primera = client.put(f"/api/reportes/{reporte_id}/dias/0", json=payload)
+    segunda = client.put(f"/api/reportes/{reporte_id}/dias/0", json=payload)
+
+    assert primera.status_code == 200
+    assert segunda.status_code == 200
+    assert segunda.json()["horas_hombre"] == primera.json()["horas_hombre"]
+    assert segunda.json()["herramientas"] == primera.json()["herramientas"]
+    assert segunda.json()["materiales"] == primera.json()["materiales"]
+
+
+def test_guardar_dia_conserva_horas_manuales(
+    client: TestClient, session: Session, faker: Faker
+) -> None:
+    reporte_id = _crear_reporte(client, semana=44)
+    colaborador = _colaborador(session, faker)
+    payload = {
+        "actividades": [
+            {
+                "letra": "A",
+                "descripcion": faker.sentence(),
+                "asignaciones": [
+                    {"colaborador_id": colaborador.id, "horas": 6.5, "horas_manual": True}
+                ],
+            }
+        ]
+    }
+
+    client.put(f"/api/reportes/{reporte_id}/dias/0", json=payload)
+    response = client.put(f"/api/reportes/{reporte_id}/dias/0", json=payload)
+
+    assert response.status_code == 200
+    asignacion = response.json()["actividades"][0]["asignaciones"][0]
+    assert asignacion["horas"] == 6.5
+    assert asignacion["horas_manual"] is True
 
 
 def test_guardar_sabado_y_advertencia_manual(

@@ -224,6 +224,7 @@ def guardar_dia(
     dia.actividades.clear()
     dia.herramientas.clear()
     dia.materiales.clear()
+    session.flush()
     for entrada in data.actividades:
         actividad = Actividad(letra=entrada.letra, descripcion=entrada.descripcion)
         for asignacion in entrada.asignaciones:
