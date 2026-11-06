@@ -49,6 +49,11 @@ class SpaceFullError(InvalidInputError):
     code = "espacio_lleno"
 
 
+class PdfError(DomainError):
+    status_code = 500
+    code = "pdf_error"
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def handle_domain_error(_request: Request, error: DomainError) -> JSONResponse:
