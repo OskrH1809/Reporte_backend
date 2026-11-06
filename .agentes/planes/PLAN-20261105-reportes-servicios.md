@@ -155,3 +155,58 @@ curl -fOJ http://127.0.0.1:8090/api/reportes/1/exportar/pdf   # con un reporte d
 - LibreOffice aumenta el tamaño de la imagen: es aceptado.
 - Fuente Calibri: el PDF no la usa porque el mejorado es Arial; `fonts-liberation` cubre el render.
 - Si se agregan más de 13 colaboradores o 14 herramientas activas, el formato actual solo muestra los primeros; el mejorado los muestra todos. La UI no tiene que avisarlo en esta versión.
+
+## Iteración 1
+Origen: `.agentes/revisiones/REVISION-20261105-reportes-servicios.md`. Ejecuta solo estas tareas, con un commit por tarea. Prueba siempre con datos sintéticos y, al terminar, borra por la API todo reporte de prueba de la base local, incluido `CH-RSG-52-2025`: la lista de reportes debe quedar vacía.
+
+### Tarea I1 — Guardar un día más de una vez
+- **Archivos:** `backend/app/routers/reportes.py`, `backend/tests/test_reportes.py`.
+- **Problema:** `PUT /api/reportes/{id}/dias/{dia}` responde 500 la segunda vez. En `guardar_dia`, `dia.actividades.clear()` no se envía a la base antes de insertar, y choca con `UNIQUE(dia_id, letra)`. Lo mismo aplica a herramientas y materiales.
+- **Qué hacer:** llama a `session.flush()` después de los `clear()` y antes de crear filas nuevas.
+- **Criterio de aceptación:** dos `PUT` iguales seguidos responden 200 y los totales no cambian; un `PUT` con horas manuales las conserva.
+- **Pruebas requeridas:** `test_guardar_dia_dos_veces` con actividades, herramientas y materiales; `test_guardar_dia_conserva_horas_manuales`.
+
+### Tarea I2 — Editor: no perder capturas, fotos y horas en vivo
+- **Archivos:** `frontend/src/pages/EditorReporte.tsx`, `frontend/src/components/SelectorFotos.tsx`, `frontend/src/components/EditorComponents.test.tsx`, `frontend/src/api/reportes.ts`, y `frontend/src/calculos.ts` (nuevo) con `frontend/src/calculos.test.ts` (nuevo).
+- **Problema 1:** subir o borrar una foto invalida la consulta `dia`; el `useEffect` reescribe `borrador` y borra lo que se había escrito sin guardar.
+- **Qué hacer:** el borrador solo se reinicia desde el servidor al cambiar `diaActual`, en la primera carga y al guardar con éxito. Las fotos se leen siempre de `dia.data`. El botón Guardar sigue activo si había cambios.
+- **Problema 2:** los errores de subir o borrar foto no se muestran, y solo se puede elegir una foto cada vez.
+- **Qué hacer:** agrega `multiple` al input. Sube los archivos en orden, uno por uno, sin superar el espacio libre. Muestra el error de la API en el `role="alert"` y un estado "Subiendo…" que desactive el input.
+- **Problema 3:** las horas y totales solo aparecen después de guardar.
+- **Qué hacer:** `calcularHoras(actividades, jornada)` en `calculos.ts` replica `recalcular_horas`. Úsalo para mostrar en vivo las horas de cada persona, las horas-hombre por actividad y los totales del día, con jornada 5 el sábado y 8 los demás días. Las filas con `horas_manual=true` no se tocan.
+- **Criterio de aceptación:** al escribir una descripción, subir una foto y guardar, la descripción se conserva. Al marcar una persona, sus horas aparecen sin guardar.
+- **Pruebas requeridas:** borrador conservado tras subir foto; error de subida visible; `calcularHoras` con 1 actividad, 2 actividades, manual y sábado.
+
+### Tarea I3 — Rehacer el diseño del Excel mejorado
+- **Archivos:** `backend/app/services/excel_mejorado.py`, `backend/tests/test_exportar.py`.
+- **Problemas vistos en el PDF real:** las fotos tapan las tablas de colaboradores, herramientas y materiales, porque se ubican por filas de alto desconocido; una foto queda partida entre páginas; fotos y mapa deformados por `width`/`height` fijos (el mapa mide 475×416 y se pinta 600×230); `texto_seguro` convierte los totales en texto `'=SUM(...)`; descripción y observación en una columna angosta; fechas ISO; logo encima del texto; fuentes que no son Arial.
+- **Qué hacer:**
+  - Rejilla fija de 12 columnas A a L, ancho 9.5, con `print_area` en todas las hojas. Las tablas combinan columnas por fila con un helper: `_tabla(hoja, fila, columnas, filas)`, donde `columnas` es `[(encabezado, col_ini, col_fin, alineacion)]`.
+  - **Alto de fila explícito en todas las filas:** `max(18, 15 * lineas)` con `lineas = ceil(len(texto) / caracteres_por_ancho)`, tomando la celda de texto más larga. Nunca dejes el alto en automático.
+  - Distribución: encabezado de 3 filas con logo proporcional (`125×53`) en A1 y título desde la columna D; bloque de 4 indicadores como tarjetas combinadas con fondo `#EAF7ED`.
+  - `Resumen`: tablas de ancho completo. La tabla por día y la de colaboradores llevan una fila final `Total` con `=SUM(...)`.
+  - Hojas por día: descripción de actividad combinada en unas 8 columnas; colaboradores, herramientas y materiales a ancho completo.
+  - Una clase `Formula(str)`: `_tabla` escribe esos valores sin pasar por `texto_seguro`, que se sigue aplicando a todo texto del usuario.
+  - Números con formato: fechas `dd/mm/yyyy`, horas `0.##`, cantidades `0.##`; números a la derecha, texto a la izquierda.
+  - Fotos en sección "Evidencia fotográfica", después de todas las tablas, en una página nueva: `Break` en `hoja.row_breaks`. Cada fila de fotos es una sola fila de Excel con alto fijo de 195 pt, con 2 recuadros de 340×255 px; conserva proporción, centra con `OneCellAnchor` como `_anclar_foto` de `excel_formato.py` y agrupa por espacio con su título. Máximo 3 filas de fotos por página, y luego otro `Break`.
+  - Mapa en una fila con alto explícito, sin deformar: ancho 420 px y alto proporcional, centrado, junto con observación y firmas. Si no cabe en la página de fotos, va tras un `Break`.
+  - Todas las celdas con texto en Arial, incluidas semana, fechas y firmas.
+- **Criterio de aceptación:** en el PDF de un reporte con 12 fotos y 7 colaboradores ninguna imagen se superpone a una tabla ni queda partida entre páginas, y los totales se muestran calculados.
+- **Pruebas requeridas:** ninguna celda contiene `'=`; fórmulas `=SUM` presentes; proporción de cada imagen dentro de ±1 % de la real; toda fila con texto tiene alto explícito; hay `Break` antes de las fotos; la fila ancla de cada imagen es mayor que la última fila con tabla.
+
+### Tarea I4 — Migración explícita
+- **Archivos:** `backend/alembic/versions/0001_esquema_inicial.py`.
+- **Problema:** usa `Base.metadata.create_all`, que depende del modelo actual. Al agregar las marcas del mapa, una base nueva crearía la columna en `0001` y fallaría `0002`.
+- **Qué hacer:** reemplázala por `op.create_table` explícitos para las 11 tablas, con sus restricciones únicas, y `downgrade` con `op.drop_table` en orden inverso. Conserva `revision = "0001"`.
+- **Criterio de aceptación:** `alembic check` sin cambios, y `upgrade head` → `downgrade base` → `upgrade head` funcionan sobre una base vacía.
+- **Pruebas requeridas:** prueba de ida y vuelta sobre SQLite temporal.
+
+### Tarea I5 — Ajustes menores
+- **Archivos:** `backend/app/services/excel_formato.py`, `backend/app/services/excel_mejorado.py`, `backend/app/services/calculos.py`, `backend/app/routers/reportes.py`, `backend/app/models/reportes.py`, `backend/tests/test_calculos.py`, `backend/tests/test_reportes.py`, `.agentes/reportes/REPORTE-20261105-reportes-servicios.md`.
+- **Qué hacer:**
+  - La jornada escrita a mano (`5 if ... else 8`) en los exportadores se reemplaza por una función `jornada_dia(dia)` en `calculos.py`, que lee settings; el router la reutiliza.
+  - La advertencia muestra el nombre, no el id: `Pedro X supera la jornada de 8 horas`.
+  - `texto_fotos` de un día nuevo arranca con `Fotos antes y después de la actividad realizada`. No cambies el esquema: se asigna al crear el reporte.
+  - Corrige el reporte: dice 10 MB (son 15) y 507 con `test_espacio_lleno` (es 422 `espacio_lleno`).
+- **Criterio de aceptación:** `make check` pasa.
+- **Pruebas requeridas:** advertencia con nombre; día nuevo con texto por defecto.
