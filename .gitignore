@@ -1,0 +1,20 @@
+# archivo fuente con datos reales y fotos
+/CH-RSG-*.xlsx
+# datos de ejecución
+/data/
+# secretos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+# node
+node_modules/
+dist/
+*.log
