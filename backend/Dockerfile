@@ -11,6 +11,5 @@ COPY . .
 RUN python -m pip install --no-cache-dir pip==26.2.0 \
     && pip install --no-cache-dir '.[dev]' \
     && chown -R app:app /srv
-USER app
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "chown -R app:app /data && exec runuser -u app -- sh -c 'alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000'"]
