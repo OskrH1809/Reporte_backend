@@ -1,1 +1,2 @@
 fecha,plan,stack,tareas_plan,tareas_completadas,primera_pasada,iteraciones,pruebas_ok,pruebas_nuevas,archivos_fuera_alcance,lineas_cambiadas,bloqueos,violaciones_normas,hallazgos_seguridad,inconsistencias,minutos_plan,minutos_ejecucion,defectos_post_merge
+2026-11-05,PLAN-20261105-reportes-servicios,FastAPI+React,7,7,,,1,25,,8032,0,,,,,44,
