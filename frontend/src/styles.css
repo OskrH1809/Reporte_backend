@@ -18,3 +18,92 @@ main {
   padding: 2rem;
   margin: auto;
 }
+
+button,
+input,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+.app-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.sidebar {
+  padding: 2rem 1rem;
+  color: white;
+  background: #16351f;
+}
+.sidebar nav {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 2rem;
+}
+.sidebar a {
+  padding: 0.65rem;
+  color: #d8eadc;
+  text-decoration: none;
+  border-radius: 0.4rem;
+}
+.sidebar a.active {
+  color: white;
+  background: #2db34a;
+}
+.content {
+  min-width: 0;
+  padding: 2rem;
+}
+.tabs,
+.inline-form,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.tabs,
+.inline-form {
+  margin-bottom: 1.5rem;
+}
+.inline-form label {
+  display: grid;
+  gap: 0.3rem;
+}
+input,
+select,
+button {
+  min-height: 38px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #a9b9ad;
+  border-radius: 0.35rem;
+}
+button {
+  color: white;
+  background: #176b2c;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+th,
+td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #dce6de;
+}
+th {
+  color: white;
+  background: #176b2c;
+}
+.error-message {
+  color: #b42318;
+}
+@media (max-width: 700px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+}

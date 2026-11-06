@@ -17,4 +17,6 @@ __pycache__/
 # node
 node_modules/
 dist/
+.tsbuild/
+*.tsbuildinfo
 *.log
