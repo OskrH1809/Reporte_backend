@@ -17,7 +17,7 @@ from app.models import (
     Herramienta,
     Reporte,
 )
-from app.services import excel_formato
+from app.services import fotos
 from app.services.excel_formato import EMU_POR_PIXEL, generar_formato
 
 
@@ -190,7 +190,7 @@ def test_formato_incluye_actividad_vacia_con_foto(
     Image.new("RGB", (120, 90), "green").save(tmp_path / nombre)
     reporte.dias[0].fotos.append(Foto(espacio="D", orden=1, archivo=nombre, nombre_original=nombre))
     session.commit()
-    monkeypatch.setattr(excel_formato, "FOTOS_DIR", tmp_path)
+    monkeypatch.setattr(fotos, "FOTOS_DIR", tmp_path)
 
     lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
 
@@ -267,15 +267,15 @@ def test_formato_acomoda_fotos_sin_salirse_ni_superponerse(
             )
         )
     session.commit()
-    monkeypatch.setattr(excel_formato, "FOTOS_DIR", tmp_path)
+    monkeypatch.setattr(fotos, "FOTOS_DIR", tmp_path)
 
     lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
-    fotos = lunes._images[:-2]
-    rectangulos = [_rectangulo(lunes, imagen, fila_inicio) for imagen in fotos]
+    imagenes = lunes._images[:-2]
+    rectangulos = [_rectangulo(lunes, imagen, fila_inicio) for imagen in imagenes]
     ancho_area = sum(_pixeles_columna(lunes, columna) for columna in range(14, 21))
     alto_area = sum(_pixeles_fila(lunes, fila) for fila in range(fila_inicio, fila_fin + 1))
 
-    assert len(fotos) == cantidad
+    assert len(imagenes) == cantidad
     assert all(0 <= x1 < x2 <= ancho_area for x1, _, x2, _ in rectangulos)
     assert all(0 <= y1 < y2 <= alto_area for _, y1, _, y2 in rectangulos)
     for indice, primero in enumerate(rectangulos):

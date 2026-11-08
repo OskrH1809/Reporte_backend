@@ -16,12 +16,12 @@ from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy import select
 from sqlalchemy.orm import object_session
 
-from app.models import Colaborador, Dia, Herramienta, Reporte
+from app.models import Actividad, Colaborador, Dia, Herramienta, Reporte
 from app.models.reportes import LETRAS_ACTIVIDAD
+from app.services import fotos
 from app.services.calculos import jornada_dia
 
 PLANTILLAS_DIR = Path(__file__).resolve().parents[1] / "plantillas"
-FOTOS_DIR = Path("/data/fotos")
 NOMBRES_DIAS = ("Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado")
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 EMU_POR_PIXEL = 9525
@@ -122,9 +122,9 @@ def _agregar_fotos(
     }
     for espacio, (fila_inicio, fila_fin) in areas.items():
         rutas = [
-            FOTOS_DIR / Path(foto.archivo).name
+            fotos.FOTOS_DIR / Path(foto.archivo).name
             for foto in dia.fotos
-            if foto.espacio == espacio and (FOTOS_DIR / Path(foto.archivo).name).is_file()
+            if foto.espacio == espacio and (fotos.FOTOS_DIR / Path(foto.archivo).name).is_file()
         ][:4]
         _acomodar_fotos(hoja, rutas, fila_inicio, fila_fin)
 
@@ -156,7 +156,7 @@ def _insertar_filas(hoja: Worksheet, fila: int, cantidad: int) -> None:
 
 
 def _insertar_actividades(
-    hoja: Worksheet, actividades: dict[str, object], extras: tuple[str, ...]
+    hoja: Worksheet, actividades: dict[str, Actividad], extras: tuple[str, ...]
 ) -> None:
     if not extras:
         return
@@ -177,7 +177,7 @@ def _insertar_actividades(
 
 
 def _insertar_bandas(
-    hoja: Worksheet, actividades: dict[str, object], extras: tuple[str, ...], jornada: float
+    hoja: Worksheet, actividades: dict[str, Actividad], extras: tuple[str, ...], jornada: float
 ) -> list[str]:
     bandas = ceil(len(extras) / 3)
     if not bandas:
