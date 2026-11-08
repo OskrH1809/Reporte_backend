@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import object_session
 
 from app.models import Colaborador, Dia, Herramienta, Material, Reporte
+from app.models.reportes import LETRAS_ACTIVIDAD
 from app.services import fotos
 from app.services.calculos import jornada_dia, totales_dia
 from app.services.excel_formato import EMU_POR_PIXEL, PLANTILLAS_DIR, texto_seguro
@@ -28,11 +29,10 @@ MARGEN_MAPA_PX = 16
 # LibreOffice pinta en la página anterior una imagen anclada al borde de la fila tras un salto.
 MARGEN_SUPERIOR_PX = 4
 ETIQUETAS_FOTOS = {
-    "A": "Actividad A",
-    "B": "Actividad B",
-    "C": "Actividad C",
+    **{letra: f"Actividad {letra}" for letra in LETRAS_ACTIVIDAD},
     "AD": "Antes y después",
 }
+ESPACIOS_FOTOS = (*LETRAS_ACTIVIDAD, "AD")
 Columna = tuple[str, int, int, str]
 
 
@@ -361,7 +361,7 @@ def _resumen(
 def _seccion_fotos(hoja: Worksheet, dia: Dia, fila: int) -> int:
     fotos_existentes = [
         foto
-        for espacio in ("A", "B", "C", "AD")
+        for espacio in ESPACIOS_FOTOS
         for foto in dia.fotos
         if foto.espacio == espacio and (fotos.FOTOS_DIR / Path(foto.archivo).name).is_file()
     ]
@@ -375,7 +375,7 @@ def _seccion_fotos(hoja: Worksheet, dia: Dia, fila: int) -> int:
     hoja.row_dimensions[fila].height = 24
     fila += 1
     filas_fotos = 0
-    for espacio in ("A", "B", "C", "AD"):
+    for espacio in ESPACIOS_FOTOS:
         grupo = [foto for foto in fotos_existentes if foto.espacio == espacio]
         if not grupo:
             continue

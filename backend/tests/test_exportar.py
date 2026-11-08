@@ -107,7 +107,12 @@ def test_mejorado_distribuye_fotos_y_formulas_sin_superposicion(
                     "asignaciones": [
                         {"colaborador_id": colaborador.id} for colaborador in colaboradores
                     ],
-                }
+                },
+                {
+                    "letra": "D",
+                    "descripcion": faker.sentence(),
+                    "asignaciones": [],
+                },
             ],
             "observacion": faker.paragraph(nb_sentences=6),
             "texto_fotos": faker.sentence(),
@@ -116,7 +121,7 @@ def test_mejorado_distribuye_fotos_y_formulas_sin_superposicion(
     assert guardado.status_code == 200
     dia = session.scalar(select(Dia).where(Dia.reporte_id == reporte_id, Dia.dia_semana == 0))
     assert dia is not None
-    espacios = ["A"] * 2 + ["B"] * 4 + ["C"] * 2 + ["AD"] * 4
+    espacios = ["A"] * 2 + ["B"] * 4 + ["C"] * 2 + ["D"] * 4 + ["AD"] * 4
     for indice, espacio in enumerate(espacios):
         nombre = f"sintetica-{indice}.jpg"
         tamano = (400, 200) if indice % 2 == 0 else (180, 360)
@@ -164,14 +169,33 @@ def test_mejorado_distribuye_fotos_y_formulas_sin_superposicion(
         if celda.value == "Evidencia fotográfica"
     )
     filas_fotos = [imagen.anchor._from.row + 1 for imagen in hoja._images[1:-1]]
-    assert len(filas_fotos) == 12
+    assert len(filas_fotos) == 16
     assert min(filas_fotos) > fila_evidencia
     assert any(salto.id < min(filas_fotos) for salto in hoja.row_breaks.brk)
     saltos = {salto.id for salto in hoja.row_breaks.brk}
     for fila in filas_fotos:
         titulo = hoja.cell(fila - 1, 1).value
-        if titulo in {"Actividad A", "Actividad B", "Actividad C", "Antes y después"}:
+        if titulo in {
+            "Actividad A",
+            "Actividad B",
+            "Actividad C",
+            "Actividad D",
+            "Antes y después",
+        }:
             assert fila - 1 not in saltos
+    fila_actividad_d = next(
+        celda.row for fila in hoja.iter_rows() for celda in fila if celda.value == "Actividad D"
+    )
+    filas_actividad_d = [
+        fila for fila in filas_fotos if fila in {fila_actividad_d + 1, fila_actividad_d + 2}
+    ]
+    assert filas_actividad_d == [
+        fila_actividad_d + 1,
+        fila_actividad_d + 1,
+        fila_actividad_d + 2,
+        fila_actividad_d + 2,
+    ]
+    assert "D" in _valores(libro)
     for imagen in hoja._images[1:]:
         assert imagen.anchor._from.rowOff > 0
     for imagen in hoja._images:
