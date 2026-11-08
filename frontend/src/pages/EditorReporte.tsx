@@ -14,6 +14,12 @@ import {
   verDia,
   verReporte,
 } from "../api/reportes";
+import {
+  armarActividades,
+  espaciosFotos,
+  puedeQuitar,
+  siguienteLetra,
+} from "../actividades";
 import { calcularHoras } from "../calculos";
 import { Confirmar, useAvisos } from "../components/Avisos";
 import { SelectorColaboradores } from "../components/SelectorColaboradores";
@@ -24,23 +30,13 @@ import "../editor.css";
 
 const nombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const nombresCortos = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const espacios = [
-  ["A", "Actividad A", 2],
-  ["B", "Actividad B", 4],
-  ["C", "Actividad C", 2],
-  ["AD", "Antes y después", 4],
-] as const;
 
 const vacio: DiaInput = {
   observacion: "",
   texto_fotos: "",
   herramientas: [],
   materiales: [],
-  actividades: (["A", "B", "C"] as const).map((letra) => ({
-    letra,
-    descripcion: "",
-    asignaciones: [],
-  })),
+  actividades: armarActividades([]),
 };
 
 const mensajeError = (error: unknown, alternativo: string) =>
@@ -102,22 +98,12 @@ export function EditorReporte() {
     const datos = dia.data;
     diaInicializado.current = diaActual;
     queueMicrotask(() => {
-      const existentes = new Map(
-        datos.actividades.map((item) => [item.letra, item]),
-      );
       setBorrador({
         observacion: datos.observacion,
         texto_fotos: datos.texto_fotos,
         herramientas: datos.herramientas,
         materiales: datos.materiales,
-        actividades: (["A", "B", "C"] as const).map(
-          (letra) =>
-            existentes.get(letra) ?? {
-              letra,
-              descripcion: "",
-              asignaciones: [],
-            },
-        ),
+        actividades: armarActividades(datos.actividades),
       });
       setActividadesAbiertas(
         new Set(
@@ -150,22 +136,12 @@ export function EditorReporte() {
       }),
     onSuccess: (resultado) => {
       queryClient.setQueryData(["dia", id, diaActual], resultado);
-      const existentes = new Map(
-        resultado.actividades.map((item) => [item.letra, item]),
-      );
       setBorrador({
         observacion: resultado.observacion,
         texto_fotos: resultado.texto_fotos,
         herramientas: resultado.herramientas,
         materiales: resultado.materiales,
-        actividades: (["A", "B", "C"] as const).map(
-          (letra) =>
-            existentes.get(letra) ?? {
-              letra,
-              descripcion: "",
-              asignaciones: [],
-            },
-        ),
+        actividades: armarActividades(resultado.actividades),
       });
       setSucio(false);
       avisar("Día guardado.");
@@ -225,6 +201,31 @@ export function EditorReporte() {
       ),
     });
   }
+  function agregarActividad() {
+    const letra = siguienteLetra(borrador.actividades);
+    if (!letra) return;
+    cambiar({
+      ...borrador,
+      actividades: [
+        ...borrador.actividades,
+        { letra, descripcion: "", asignaciones: [] },
+      ],
+    });
+    setActividadesAbiertas((actuales) => new Set(actuales).add(letra));
+  }
+  function quitarActividad(actividad: Actividad) {
+    cambiar({
+      ...borrador,
+      actividades: borrador.actividades.filter(
+        (item) => item.letra !== actividad.letra,
+      ),
+    });
+    setActividadesAbiertas((actuales) => {
+      const nuevas = new Set(actuales);
+      nuevas.delete(actividad.letra);
+      return nuevas;
+    });
+  }
   function confirmarCambioDia(nuevo: number) {
     diaInicializado.current = undefined;
     setDiaActual(nuevo);
@@ -257,6 +258,7 @@ export function EditorReporte() {
   const error = reporte.error ?? dia.error ?? editarFirmas.error;
   const faltanFirmas =
     !reporte.data?.elaborado_por_id || !reporte.data.revisado_por_id;
+  const proximaLetra = siguienteLetra(borrador.actividades);
   return (
     <section className="editor stack">
       <header className="page-header">
@@ -372,6 +374,11 @@ export function EditorReporte() {
           const vacia =
             !actividad.descripcion && actividad.asignaciones.length === 0;
           const abierta = !vacia || actividadesAbiertas.has(actividad.letra);
+          const sePuedeQuitar = puedeQuitar(
+            actividad,
+            indice === actividadesCalculadas.length - 1,
+            fotos,
+          );
           const horas = actividad.asignaciones.reduce(
             (total, item) => total + (item.horas ?? 0),
             0,
@@ -383,17 +390,28 @@ export function EditorReporte() {
                   Actividad {actividad.letra} ·{" "}
                   <span className="muted">sin capturar</span>
                 </strong>
-                <button
-                  type="button"
-                  className="btn-secondary btn-sm"
-                  onClick={() =>
-                    setActividadesAbiertas((actuales) =>
-                      new Set(actuales).add(actividad.letra),
-                    )
-                  }
-                >
-                  Capturar
-                </button>
+                <div className="cluster">
+                  {sePuedeQuitar ? (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      onClick={() => quitarActividad(actividad)}
+                    >
+                      Quitar
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={() =>
+                      setActividadesAbiertas((actuales) =>
+                        new Set(actuales).add(actividad.letra),
+                      )
+                    }
+                  >
+                    Capturar
+                  </button>
+                </div>
               </section>
             );
           }
@@ -408,6 +426,15 @@ export function EditorReporte() {
                   <span className="badge badge-muted num">
                     {horas.toLocaleString("es")} h-h
                   </span>
+                  {sePuedeQuitar ? (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      onClick={() => quitarActividad(actividad)}
+                    >
+                      Quitar
+                    </button>
+                  ) : null}
                 </div>
               </div>
               <label className="field">
@@ -434,6 +461,19 @@ export function EditorReporte() {
           );
         })}
       </div>
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={proximaLetra === undefined}
+        title={
+          proximaLetra === undefined
+            ? "Máximo 10 actividades por día"
+            : undefined
+        }
+        onClick={agregarActividad}
+      >
+        Agregar actividad
+      </button>
 
       <div className="grid-2">
         <TablaCantidades
@@ -457,42 +497,44 @@ export function EditorReporte() {
           <h2 className="card-title">Fotos</h2>
         </div>
         <div className="fotos-secciones">
-          {espacios.map(([espacio, etiqueta, maximo]) => (
-            <SelectorFotos
-              key={espacio}
-              espacio={espacio}
-              etiqueta={etiqueta}
-              maximo={maximo}
-              fotos={fotos}
-              subiendo={subiendoEspacio === espacio}
-              onExceso={(agregadas, limite) =>
-                avisar(
-                  `Solo se agregaron ${agregadas} foto(s); el máximo es ${limite}.`,
-                  "info",
-                )
-              }
-              onSubir={(archivos) => {
-                setSubiendoEspacio(espacio);
-                void subirFotos(id, diaActual, espacio, archivos)
-                  .then(() => {
-                    avisar("Foto subida.");
-                    return queryClient.invalidateQueries({
-                      queryKey: ["dia", id, diaActual],
-                    });
-                  })
-                  .catch((error: unknown) =>
-                    avisar(
-                      mensajeError(error, "Error al subir la foto."),
-                      "error",
-                    ),
+          {espaciosFotos(borrador.actividades).map(
+            ([espacio, etiqueta, maximo]) => (
+              <SelectorFotos
+                key={espacio}
+                espacio={espacio}
+                etiqueta={etiqueta}
+                maximo={maximo}
+                fotos={fotos}
+                subiendo={subiendoEspacio === espacio}
+                onExceso={(agregadas, limite) =>
+                  avisar(
+                    `Solo se agregaron ${agregadas} foto(s); el máximo es ${limite}.`,
+                    "info",
                   )
-                  .finally(() => setSubiendoEspacio(undefined));
-              }}
-              onEliminar={(fotoId) =>
-                setFotoPendiente(fotos.find((foto) => foto.id === fotoId))
-              }
-            />
-          ))}
+                }
+                onSubir={(archivos) => {
+                  setSubiendoEspacio(espacio);
+                  void subirFotos(id, diaActual, espacio, archivos)
+                    .then(() => {
+                      avisar("Foto subida.");
+                      return queryClient.invalidateQueries({
+                        queryKey: ["dia", id, diaActual],
+                      });
+                    })
+                    .catch((error: unknown) =>
+                      avisar(
+                        mensajeError(error, "Error al subir la foto."),
+                        "error",
+                      ),
+                    )
+                    .finally(() => setSubiendoEspacio(undefined));
+                }}
+                onEliminar={(fotoId) =>
+                  setFotoPendiente(fotos.find((foto) => foto.id === fotoId))
+                }
+              />
+            ),
+          )}
         </div>
       </section>
 

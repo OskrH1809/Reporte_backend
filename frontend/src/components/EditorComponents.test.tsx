@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { type Catalogo, listarCatalogo } from "../api/catalogos";
 import {
+  LETRAS,
   editarReporte,
   eliminarFoto,
   guardarDia,
@@ -268,4 +269,64 @@ it("muestra un aviso al guardar el día", async () => {
   );
   await usuario.click(screen.getByRole("button", { name: "Guardar" }));
   expect(await screen.findByText("Día guardado.")).toBeInTheDocument();
+});
+
+it("muestra solo actividades A y B para un día vacío", async () => {
+  paginaEditor();
+
+  await screen.findByText(/Actividad A ·/);
+  expect(screen.getByText(/Actividad B ·/)).toBeInTheDocument();
+  expect(screen.queryByText(/Actividad C ·/)).not.toBeInTheDocument();
+});
+
+it("agrega la siguiente actividad y su espacio de fotos", async () => {
+  const usuario = userEvent.setup();
+  paginaEditor();
+  await screen.findByText(/Actividad A ·/);
+
+  await usuario.click(
+    screen.getByRole("button", { name: "Agregar actividad" }),
+  );
+
+  expect(
+    screen.getByRole("heading", { name: "Actividad C", level: 2 }),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("Fotos Actividad C")).toBeInTheDocument();
+});
+
+it("deshabilita agregar al llegar a J", async () => {
+  vi.mocked(verDia).mockResolvedValue({
+    ...dia,
+    actividades: LETRAS.map((letra) => ({
+      letra,
+      descripcion: `Descripción ${letra}`,
+      asignaciones: [],
+    })),
+  });
+  paginaEditor();
+
+  const boton = await screen.findByRole("button", {
+    name: "Agregar actividad",
+  });
+  await waitFor(() => expect(boton).toBeDisabled());
+  expect(boton).toHaveAttribute("title", "Máximo 10 actividades por día");
+});
+
+it("no permite quitar B y quita C cuando está vacía", async () => {
+  const usuario = userEvent.setup();
+  paginaEditor();
+  await screen.findByText(/Actividad B ·/);
+  expect(
+    screen.queryByRole("button", { name: "Quitar" }),
+  ).not.toBeInTheDocument();
+
+  await usuario.click(
+    screen.getByRole("button", { name: "Agregar actividad" }),
+  );
+  await usuario.click(screen.getByRole("button", { name: "Quitar" }));
+
+  expect(
+    screen.queryByRole("heading", { name: "Actividad C", level: 2 }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Fotos Actividad C")).not.toBeInTheDocument();
 });
