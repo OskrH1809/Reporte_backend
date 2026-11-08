@@ -1,4 +1,6 @@
+from copy import copy
 from io import BytesIO
+from math import ceil
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -15,9 +17,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import object_session
 
 from app.models import Colaborador, Dia, Herramienta, Reporte
+from app.models.reportes import LETRAS_ACTIVIDAD
 from app.services.calculos import jornada_dia
 
 PLANTILLAS_DIR = Path(__file__).resolve().parents[1] / "plantillas"
+FOTOS_DIR = Path("/data/fotos")
 NOMBRES_DIAS = ("Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado")
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 EMU_POR_PIXEL = 9525
@@ -36,8 +40,8 @@ def _anclar_logo(hoja: Worksheet) -> None:
     hoja.add_image(imagen)
 
 
-def _anclar_mapa(hoja: Worksheet, con_actividades: bool) -> None:
-    fila = 34 if con_actividades else 30
+def _anclar_mapa(hoja: Worksheet, con_actividades: bool, desplazamiento: int = 0) -> None:
+    fila = 34 + desplazamiento if con_actividades else 30
     imagen = ExcelImage(PLANTILLAS_DIR / "mapa.png")
     imagen.anchor = TwoCellAnchor(
         _from=AnchorMarker(col=9, colOff=484907, row=fila, rowOff=154376),
@@ -56,39 +60,171 @@ def _pixeles_fila(hoja: Worksheet, fila: int) -> int:
     return int(alto * 96 / 72)
 
 
-def _anclar_foto(hoja: Worksheet, ruta: Path, fila: int, derecha: bool) -> None:
-    columna_inicio, columna_fin = (18, 20) if derecha else (14, 17)
-    ancho = sum(_pixeles_columna(hoja, indice) for indice in range(columna_inicio, columna_fin + 1))
-    alto = _pixeles_fila(hoja, fila)
-    imagen = ExcelImage(ruta)
-    escala = min(ancho / imagen.width, alto / imagen.height)
-    imagen.width = max(1, int(imagen.width * escala))
-    imagen.height = max(1, int(imagen.height * escala))
-    desplazamiento_x = max(0, (ancho - imagen.width) // 2)
-    desplazamiento_y = max(0, (alto - imagen.height) // 2)
-    imagen.anchor = OneCellAnchor(
-        _from=AnchorMarker(
-            col=columna_inicio - 1,
-            colOff=desplazamiento_x * EMU_POR_PIXEL,
-            row=fila - 1,
-            rowOff=desplazamiento_y * EMU_POR_PIXEL,
-        ),
-        ext=XDRPositiveSize2D(
-            cx=int(imagen.width * EMU_POR_PIXEL),
-            cy=int(imagen.height * EMU_POR_PIXEL),
-        ),
+def _marcador(hoja: Worksheet, columna: int, fila: int, x_px: int, y_px: int) -> AnchorMarker:
+    while x_px >= _pixeles_columna(hoja, columna):
+        x_px -= _pixeles_columna(hoja, columna)
+        columna += 1
+    while y_px >= _pixeles_fila(hoja, fila):
+        y_px -= _pixeles_fila(hoja, fila)
+        fila += 1
+    return AnchorMarker(
+        col=columna - 1,
+        colOff=x_px * EMU_POR_PIXEL,
+        row=fila - 1,
+        rowOff=y_px * EMU_POR_PIXEL,
     )
-    hoja.add_image(imagen)
 
 
-def _agregar_fotos(hoja: Worksheet, dia: Dia) -> None:
-    filas = {"A": [26], "B": [27, 28], "C": [29], "AD": [30, 31]}
-    for espacio, filas_espacio in filas.items():
-        fotos = [foto for foto in dia.fotos if foto.espacio == espacio]
-        for indice, foto in enumerate(fotos[: len(filas_espacio) * 2]):
-            ruta = Path("/data/fotos") / Path(foto.archivo).name
-            if ruta.is_file():
-                _anclar_foto(hoja, ruta, filas_espacio[indice // 2], bool(indice % 2))
+def _acomodar_fotos(hoja: Worksheet, rutas: list[Path], fila_inicio: int, fila_fin: int) -> None:
+    if not rutas:
+        return
+    filas, columnas = (1, 1) if len(rutas) == 1 else ((1, 2) if len(rutas) == 2 else (2, 2))
+    ancho_area = sum(_pixeles_columna(hoja, indice) for indice in range(14, 21))
+    alto_area = sum(_pixeles_fila(hoja, fila) for fila in range(fila_inicio, fila_fin + 1))
+    ancho_casilla = ancho_area / columnas
+    alto_casilla = alto_area / filas
+    margen = 4
+    for indice, ruta in enumerate(rutas[:4]):
+        imagen = ExcelImage(ruta)
+        ancho_disponible = max(1, ancho_casilla - 2 * margen)
+        alto_disponible = max(1, alto_casilla - 2 * margen)
+        escala = min(ancho_disponible / imagen.width, alto_disponible / imagen.height)
+        ancho = max(1, int(imagen.width * escala))
+        alto = max(1, int(imagen.height * escala))
+        fila_casilla, columna_casilla = divmod(indice, columnas)
+        x = int(columna_casilla * ancho_casilla + margen + (ancho_disponible - ancho) / 2)
+        y = int(fila_casilla * alto_casilla + margen + (alto_disponible - alto) / 2)
+        imagen.width = ancho
+        imagen.height = alto
+        imagen.anchor = OneCellAnchor(
+            _from=_marcador(hoja, 14, fila_inicio, x, y),
+            ext=XDRPositiveSize2D(cx=ancho * EMU_POR_PIXEL, cy=alto * EMU_POR_PIXEL),
+        )
+        hoja.add_image(imagen)
+
+
+def _agregar_fotos(
+    hoja: Worksheet,
+    dia: Dia,
+    extras: tuple[str, ...],
+    desplazamiento_bandas: int,
+    desplazamiento: int,
+) -> None:
+    areas = {
+        "A": (26 + desplazamiento_bandas, 26 + desplazamiento_bandas),
+        "B": (27 + desplazamiento_bandas, 28 + desplazamiento_bandas),
+        "C": (29 + desplazamiento_bandas, 29 + desplazamiento_bandas),
+        **{
+            letra: (30 + indice + desplazamiento_bandas, 30 + indice + desplazamiento_bandas)
+            for indice, letra in enumerate(extras)
+        },
+        "AD": (30 + desplazamiento, 31 + desplazamiento),
+    }
+    for espacio, (fila_inicio, fila_fin) in areas.items():
+        rutas = [
+            FOTOS_DIR / Path(foto.archivo).name
+            for foto in dia.fotos
+            if foto.espacio == espacio and (FOTOS_DIR / Path(foto.archivo).name).is_file()
+        ][:4]
+        _acomodar_fotos(hoja, rutas, fila_inicio, fila_fin)
+
+
+def _insertar_filas(hoja: Worksheet, fila: int, cantidad: int) -> None:
+    rangos = [
+        (rango.min_col, rango.min_row, rango.max_col, rango.max_row)
+        for rango in hoja.merged_cells.ranges
+        if rango.min_row >= fila
+    ]
+    for min_col, min_row, max_col, max_row in rangos:
+        hoja.unmerge_cells(
+            start_row=min_row, start_column=min_col, end_row=max_row, end_column=max_col
+        )
+    ultima_fila = hoja.max_row
+    hoja.move_range(f"A{fila}:T{ultima_fila}", rows=cantidad, translate=True)
+    for min_col, min_row, max_col, max_row in rangos:
+        hoja.merge_cells(
+            start_row=min_row + cantidad,
+            start_column=min_col,
+            end_row=max_row + cantidad,
+            end_column=max_col,
+        )
+    for numero in range(ultima_fila, fila - 1, -1):
+        hoja.row_dimensions[numero + cantidad].height = hoja.row_dimensions[numero].height
+
+
+def _insertar_actividades(
+    hoja: Worksheet, actividades: dict[str, object], extras: tuple[str, ...]
+) -> None:
+    if not extras:
+        return
+    _insertar_filas(hoja, 30, len(extras))
+    for indice, letra in enumerate(extras):
+        fila = 30 + indice
+        hoja.row_dimensions[fila].height = 253.5
+        for columna in range(1, 21):
+            hoja.cell(fila, columna)._style = copy(hoja.cell(29, columna)._style)
+        hoja.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=3)
+        hoja.merge_cells(start_row=fila, start_column=4, end_row=fila, end_column=12)
+        hoja.merge_cells(start_row=fila, start_column=14, end_row=fila, end_column=20)
+        actividad = actividades.get(letra)
+        hoja.cell(fila, 1, 4 + indice)
+        hoja.cell(fila, 4, texto_seguro(actividad.descripcion) if actividad else "")
+        hoja.cell(fila, 13, letra)
+    hoja.cell(30 + len(extras), 1, 4 + len(extras))
+
+
+def _insertar_bandas(
+    hoja: Worksheet, actividades: dict[str, object], extras: tuple[str, ...], jornada: float
+) -> list[str]:
+    bandas = ceil(len(extras) / 3)
+    if not bandas:
+        return []
+    _insertar_filas(hoja, 24, 5 * bandas)
+    totales = []
+    filas_modelo = (10, 11, 13, 15, 19)
+    for banda in range(bandas):
+        fila_inicio = 24 + 5 * banda
+        letras = extras[3 * banda : 3 * banda + 3]
+        for desplazamiento, fila_modelo in enumerate(filas_modelo):
+            fila = fila_inicio + desplazamiento
+            hoja.row_dimensions[fila].height = hoja.row_dimensions[fila_modelo].height
+            for columna in range(10, 16):
+                hoja.cell(fila, columna)._style = copy(hoja.cell(fila_modelo, columna)._style)
+        for desplazamiento in range(1, 5):
+            hoja.merge_cells(
+                start_row=fila_inicio + desplazamiento,
+                start_column=10,
+                end_row=fila_inicio + desplazamiento,
+                end_column=12,
+            )
+        hoja.cell(fila_inicio + 1, 10, "Número de colaborador en actividad")
+        hoja.cell(fila_inicio + 2, 10, "Horas de actividad")
+        hoja.cell(fila_inicio + 3, 10, "Horas hombres ")
+        hoja.cell(fila_inicio + 4, 10, "Total de actividades")
+        for indice, letra in enumerate(letras, start=13):
+            columna = get_column_letter(indice)
+            actividad = actividades.get(letra)
+            personas = len(actividad.asignaciones) if actividad else 0
+            horas = sum(item.horas for item in actividad.asignaciones) if actividad else 0
+            hoja.cell(fila_inicio, indice, letra)
+            hoja.cell(
+                fila_inicio + 1,
+                indice,
+                f'=COUNTIF($H$10:$H$22,"*"&{columna}${fila_inicio}&"*")',
+            )
+            hoja.cell(fila_inicio + 2, indice, horas / personas if personas else jornada)
+            hoja.cell(
+                fila_inicio + 3,
+                indice,
+                f"=+{columna}{fila_inicio + 2}*{columna}{fila_inicio + 1}",
+            )
+            hoja.cell(
+                fila_inicio + 4,
+                indice,
+                f"=+IF({columna}{fila_inicio + 1}=0,0,1)",
+            )
+            totales.append(f"{columna}{fila_inicio + 4}")
+    return totales
 
 
 def _llenar_comunes(
@@ -132,26 +268,54 @@ def _llenar_dia(
     dia: Dia,
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
-) -> None:
+) -> list[str]:
     con_actividades = bool(dia.actividades)
-    hoja.print_area = "A1:T58" if con_actividades else "A1:T54"
     _llenar_comunes(hoja, reporte, dia, colaboradores, herramientas)
     actividades = {actividad.letra: actividad for actividad in dia.actividades}
     if con_actividades:
-        for celda, letra in (("D26", "A"), ("D27", "B"), ("D29", "C")):
+        indice_mas_alto = max(LETRAS_ACTIVIDAD.index(letra) for letra in actividades)
+        extras = LETRAS_ACTIVIDAD[3 : indice_mas_alto + 1]
+        bandas = ceil(len(extras) / 3)
+        desplazamiento_bandas = 5 * bandas
+        desplazamiento = desplazamiento_bandas + len(extras)
+        _insertar_actividades(hoja, actividades, extras)
+        totales_extras = _insertar_bandas(hoja, actividades, extras, jornada_dia(dia))
+        for fila, letra in ((26, "A"), (27, "B"), (29, "C")):
             descripcion = actividades[letra].descripcion if letra in actividades else ""
-            hoja[celda] = texto_seguro(descripcion)
-        hoja["D30"] = texto_seguro(dia.texto_fotos)
-        hoja["A52"] = texto_seguro(dia.observacion)
-        hoja["F57"] = texto_seguro(reporte.elaborado_por.nombre) if reporte.elaborado_por else ""
-        hoja["R57"] = texto_seguro(reporte.revisado_por.nombre) if reporte.revisado_por else ""
-        _agregar_fotos(hoja, dia)
+            hoja.cell(fila + desplazamiento_bandas, 4, texto_seguro(descripcion))
+        hoja.cell(30 + desplazamiento, 4, texto_seguro(dia.texto_fotos))
+        hoja.cell(52 + desplazamiento, 1, texto_seguro(dia.observacion))
+        hoja.cell(
+            57 + desplazamiento,
+            6,
+            texto_seguro(reporte.elaborado_por.nombre) if reporte.elaborado_por else "",
+        )
+        hoja.cell(
+            57 + desplazamiento,
+            18,
+            texto_seguro(reporte.revisado_por.nombre) if reporte.revisado_por else "",
+        )
+        formulas_horas = ["M15", "N15", "O15"]
+        for banda in range(bandas):
+            fila = 24 + 5 * banda
+            formulas_horas.extend(
+                f"{get_column_letter(13 + indice)}{fila + 3}"
+                for indice in range(len(extras[3 * banda : 3 * banda + 3]))
+            )
+        hoja["M17"] = "=+" + "+".join(formulas_horas)
+        hoja.print_area = f"A1:T{58 + desplazamiento}"
+        _agregar_fotos(hoja, dia, extras, desplazamiento_bandas, desplazamiento)
+        totales = ["M19", "N19", "O19", *totales_extras]
     else:
+        hoja.print_area = "A1:T54"
         hoja["A48"] = texto_seguro(dia.observacion)
         hoja["F53"] = texto_seguro(reporte.elaborado_por.nombre) if reporte.elaborado_por else ""
         hoja["R53"] = texto_seguro(reporte.revisado_por.nombre) if reporte.revisado_por else ""
+        desplazamiento = 0
+        totales = ["M19", "N19", "O19"]
     _anclar_logo(hoja)
-    _anclar_mapa(hoja, con_actividades)
+    _anclar_mapa(hoja, con_actividades, desplazamiento)
+    return totales
 
 
 def generar_formato(reporte: Reporte) -> bytes:
@@ -178,16 +342,18 @@ def generar_formato(reporte: Reporte) -> bytes:
         base = libro["base_actividades" if dia.actividades else "base_sin_actividades"]
         hoja = libro.copy_worksheet(base)
         hoja.title = nombre
-        _llenar_dia(hoja, reporte, dia, colaboradores, herramientas)
-        hojas_dias.append(hoja)
+        totales = _llenar_dia(hoja, reporte, dia, colaboradores, herramientas)
+        hojas_dias.append((hoja, totales))
     libro.remove(libro["base_actividades"])
     libro.remove(libro["base_sin_actividades"])
     datos = libro["Datos"]
-    for columna, nombre in enumerate(NOMBRES_DIAS, start=5):
+    for columna, (nombre, (_, totales)) in enumerate(
+        zip(NOMBRES_DIAS, hojas_dias, strict=True), start=5
+    ):
         letra_columna = get_column_letter(columna)
-        datos[f"{letra_columna}8"] = f"=+{nombre}!M19+{nombre}!N19+{nombre}!O19"
+        datos[f"{letra_columna}8"] = "=+" + "+".join(f"{nombre}!{celda}" for celda in totales)
         datos[f"{letra_columna}9"] = f"=+{nombre}!M17"
-    libro._sheets = [*hojas_dias, datos]
+    libro._sheets = [*(hoja for hoja, _ in hojas_dias), datos]
     salida = BytesIO()
     libro.save(salida)
     return salida.getvalue()
