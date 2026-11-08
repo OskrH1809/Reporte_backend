@@ -295,12 +295,6 @@ export function Reportes() {
                         </td>
                         <td className="acciones">
                           <div className="row-actions">
-                            <Link
-                              className="btn btn-sm"
-                              to={`/reportes/${reporte.id}`}
-                            >
-                              Abrir
-                            </Link>
                             <button
                               type="button"
                               className="btn-ghost btn-danger btn-icon"

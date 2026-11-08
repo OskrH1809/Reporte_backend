@@ -666,9 +666,20 @@ td.acciones .row-actions {
 /* ---------- Reportes ---------- */
 .reportes-layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 250px minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
+}
+.reportes-layout > * {
+  min-width: 0;
+}
+.reportes-layout td.num,
+.reportes-layout td .row-actions {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+th {
+  white-space: nowrap;
 }
 .nuevo-reporte {
   position: sticky;
@@ -689,6 +700,7 @@ td.acciones .row-actions {
 }
 .enlace-reporte {
   font-weight: 700;
+  white-space: nowrap;
   text-decoration: none;
 }
 .enlace-reporte:hover {
@@ -767,7 +779,7 @@ td.acciones .row-actions {
   .grid-2,
   .grid-3,
   .reportes-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .nuevo-reporte {
     position: static;
@@ -780,7 +792,7 @@ td.acciones .row-actions {
 }
 @media (max-width: 760px) {
   .app-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
     position: static;
