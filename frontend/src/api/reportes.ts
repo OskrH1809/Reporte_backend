@@ -1,5 +1,19 @@
 import { apiRequest } from "./client";
 
+export const LETRAS = [
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+] as const;
+export type Letra = (typeof LETRAS)[number];
+
 export interface Reporte {
   id: number;
   anio: number;
@@ -20,7 +34,7 @@ export interface Asignacion {
 }
 export interface Actividad {
   id?: number;
-  letra: "A" | "B" | "C";
+  letra: Letra;
   descripcion: string;
   asignaciones: Asignacion[];
   personas?: number;
@@ -35,7 +49,7 @@ export interface Cantidad {
 }
 export interface Foto {
   id: number;
-  espacio: "A" | "B" | "C" | "AD";
+  espacio: Letra | "AD";
   orden: number;
   nombre_original: string;
   url: string;
