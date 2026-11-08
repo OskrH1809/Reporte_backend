@@ -103,6 +103,45 @@ def test_guardar_dia_dos_veces(client: TestClient, session: Session, faker: Fake
     assert segunda.json()["materiales"] == primera.json()["materiales"]
 
 
+def test_guardar_dia_con_actividades_a_j(
+    client: TestClient, session: Session, faker: Faker
+) -> None:
+    reporte_id = _crear_reporte(client, semana=51)
+    colaborador = _colaborador(session, faker)
+    payload = {
+        "actividades": [
+            {
+                "letra": letra,
+                "descripcion": faker.sentence(),
+                "asignaciones": [{"colaborador_id": colaborador.id}],
+            }
+            for letra in "ABCDEFGHIJ"
+        ]
+    }
+
+    response = client.put(f"/api/reportes/{reporte_id}/dias/0", json=payload)
+
+    assert response.status_code == 200
+    assert [item["letra"] for item in response.json()["actividades"]] == list("ABCDEFGHIJ")
+    assert response.json()["numero_actividades"] == 10
+
+
+def test_guardar_dia_rechaza_actividades_invalidas(client: TestClient, faker: Faker) -> None:
+    reporte_id = _crear_reporte(client, semana=52)
+    actividad = {"letra": "A", "descripcion": faker.sentence(), "asignaciones": []}
+    casos = (
+        {"actividades": [actividad] * 11},
+        {"actividades": [{**actividad, "letra": "K"}]},
+        {"actividades": [actividad, actividad]},
+        {"actividades": [{**actividad, "id": 99}]},
+    )
+
+    for payload in casos:
+        response = client.put(f"/api/reportes/{reporte_id}/dias/0", json=payload)
+        assert response.status_code == 422
+        assert response.json()["code"] == "validation_error"
+
+
 def test_guardar_dia_conserva_horas_manuales(
     client: TestClient, session: Session, faker: Faker
 ) -> None:
@@ -194,18 +233,26 @@ def test_foto_invalida_y_mayor_al_maximo(client: TestClient) -> None:
 def test_espacio_lleno(client: TestClient, tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(fotos, "FOTOS_DIR", tmp_path)
     reporte_id = _crear_reporte(client, semana=42)
-    for indice in range(2):
+    for espacio in ("A", "D"):
+        for indice in range(4):
+            response = client.post(
+                f"/api/reportes/{reporte_id}/dias/0/fotos",
+                data={"espacio": espacio},
+                files={"archivo": (f"foto-{espacio}-{indice}.png", _imagen_bytes(), "image/png")},
+            )
+            assert response.status_code == 201
+
         response = client.post(
             f"/api/reportes/{reporte_id}/dias/0/fotos",
-            data={"espacio": "A"},
-            files={"archivo": (f"foto-{indice}.png", _imagen_bytes(), "image/png")},
+            data={"espacio": espacio},
+            files={"archivo": (f"foto-{espacio}-5.png", _imagen_bytes(), "image/png")},
         )
-        assert response.status_code == 201
+        assert response.status_code == 422
+        assert response.json()["code"] == "espacio_lleno"
 
-    response = client.post(
+    inexistente = client.post(
         f"/api/reportes/{reporte_id}/dias/0/fotos",
-        data={"espacio": "A"},
-        files={"archivo": ("foto-3.png", _imagen_bytes(), "image/png")},
+        data={"espacio": "K"},
+        files={"archivo": ("foto-k.png", _imagen_bytes(), "image/png")},
     )
-    assert response.status_code == 422
-    assert response.json()["code"] == "espacio_lleno"
+    assert inexistente.status_code == 404

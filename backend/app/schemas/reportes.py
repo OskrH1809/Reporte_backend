@@ -3,8 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Letra = Literal["A", "B", "C"]
-Espacio = Literal["A", "B", "C", "AD"]
+Letra = Literal["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+Espacio = Literal["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "AD"]
 
 
 class ReporteCreate(BaseModel):
@@ -90,7 +90,7 @@ class DiaWrite(BaseModel):
 
     observacion: str = Field(default="", max_length=2000)
     texto_fotos: str = Field(default="", max_length=1000)
-    actividades: list[ActividadWrite] = Field(default_factory=list, max_length=3)
+    actividades: list[ActividadWrite] = Field(default_factory=list, max_length=10)
     herramientas: list[CantidadHerramientaWrite] = Field(default_factory=list, max_length=100)
     materiales: list[CantidadMaterialWrite] = Field(default_factory=list, max_length=100)
 

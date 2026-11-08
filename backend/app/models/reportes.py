@@ -1,5 +1,5 @@
 from datetime import date
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from app.models.catalogos import Colaborador, Firmante, Herramienta, Material
 
 TEXTO_FOTOS_PREDETERMINADO = "Fotos antes y después de la actividad realizada"
+LETRAS_ACTIVIDAD = ("A", "B", "C", "D", "E", "F", "G", "H", "I", "J")
+LETRAS_ACTIVIDAD_SQL = ", ".join(f"'{letra}'" for letra in LETRAS_ACTIVIDAD)
 
 
 class Reporte(Base):
@@ -69,12 +71,15 @@ class Actividad(Base):
     __tablename__ = "actividades"
     __table_args__ = (
         UniqueConstraint("dia_id", "letra"),
-        CheckConstraint("letra IN ('A', 'B', 'C')", name="letra_valida"),
+        CheckConstraint(
+            f"letra IN ({LETRAS_ACTIVIDAD_SQL})",
+            name="letra_valida",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     dia_id: Mapped[int] = mapped_column(ForeignKey("dias.id", ondelete="CASCADE"))
-    letra: Mapped[Literal["A", "B", "C"]] = mapped_column(String(1), nullable=False)
+    letra: Mapped[str] = mapped_column(String(1), nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
     dia: Mapped[Dia] = relationship(back_populates="actividades")
     asignaciones: Mapped[list["Asignacion"]] = relationship(
@@ -115,11 +120,16 @@ class DiaMaterial(Base):
 
 class Foto(Base):
     __tablename__ = "fotos"
-    __table_args__ = (CheckConstraint("espacio IN ('A', 'B', 'C', 'AD')", name="espacio_valido"),)
+    __table_args__ = (
+        CheckConstraint(
+            f"espacio IN ({LETRAS_ACTIVIDAD_SQL}, 'AD')",
+            name="espacio_valido",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     dia_id: Mapped[int] = mapped_column(ForeignKey("dias.id", ondelete="CASCADE"))
-    espacio: Mapped[Literal["A", "B", "C", "AD"]] = mapped_column(String(2), nullable=False)
+    espacio: Mapped[str] = mapped_column(String(2), nullable=False)
     orden: Mapped[int] = mapped_column(Integer, nullable=False)
     archivo: Mapped[str] = mapped_column(String(255), nullable=False)
     nombre_original: Mapped[str] = mapped_column(String(255), nullable=False)

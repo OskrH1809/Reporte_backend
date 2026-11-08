@@ -24,7 +24,7 @@ from app.models import (
     Material,
     Reporte,
 )
-from app.models.reportes import TEXTO_FOTOS_PREDETERMINADO
+from app.models.reportes import LETRAS_ACTIVIDAD, TEXTO_FOTOS_PREDETERMINADO
 from app.schemas.reportes import (
     ActividadRead,
     AsignacionRead,
@@ -41,7 +41,7 @@ from app.services.calculos import jornada_dia, recalcular_horas, totales_dia
 DatabaseSession = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/api", tags=["reportes"])
 settings = get_settings()
-LIMITES_FOTOS = {"A": 2, "B": 4, "C": 2, "AD": 4}
+LIMITES_FOTOS = {**{letra: 4 for letra in LETRAS_ACTIVIDAD}, "AD": 4}
 
 
 def obtener_reporte(session: Session, reporte_id: int) -> Reporte:
