@@ -103,7 +103,7 @@ export function EditorReporte() {
         texto_fotos: datos.texto_fotos,
         herramientas: datos.herramientas,
         materiales: datos.materiales,
-        actividades: armarActividades(datos.actividades),
+        actividades: armarActividades(datos.actividades, datos.fotos),
       });
       setActividadesAbiertas(
         new Set(
@@ -141,7 +141,7 @@ export function EditorReporte() {
         texto_fotos: resultado.texto_fotos,
         herramientas: resultado.herramientas,
         materiales: resultado.materiales,
-        actividades: armarActividades(resultado.actividades),
+        actividades: armarActividades(resultado.actividades, resultado.fotos),
       });
       setSucio(false);
       avisar("Día guardado.");

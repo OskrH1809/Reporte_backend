@@ -1,12 +1,18 @@
 import { LETRAS, type Actividad, type Foto, type Letra } from "./api/reportes";
 
-export function armarActividades(guardadas: Actividad[]): Actividad[] {
+export function armarActividades(
+  guardadas: Actividad[],
+  fotos: Foto[] = [],
+): Actividad[] {
   const porLetra = new Map(
     guardadas.map((actividad) => [actividad.letra, actividad]),
   );
   const indiceMasAlto = Math.max(
     1,
     ...guardadas.map((actividad) => LETRAS.indexOf(actividad.letra)),
+    ...fotos.map((foto) =>
+      foto.espacio === "AD" ? -1 : LETRAS.indexOf(foto.espacio),
+    ),
   );
   return LETRAS.slice(0, indiceMasAlto + 1).map(
     (letra) =>

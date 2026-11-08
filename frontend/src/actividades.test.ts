@@ -43,6 +43,18 @@ it("rellena los huecos hasta la letra más alta guardada", () => {
   ]);
 });
 
+it("rellena los huecos hasta la letra más alta que tiene fotos", () => {
+  const resultado = armarActividades([actividad("A")], [foto("D")]);
+
+  expect(resultado.map((item) => item.letra)).toEqual(["A", "B", "C", "D"]);
+});
+
+it("ignora las fotos de antes y después al armar actividades", () => {
+  const resultado = armarActividades([actividad("A")], [foto("AD")]);
+
+  expect(resultado.map((item) => item.letra)).toEqual(["A", "B"]);
+});
+
 it("no ofrece una letra después de J", () => {
   const actividades = "ABCDEFGHIJ"
     .split("")

@@ -181,6 +181,25 @@ def test_formato_escapa_formula_en_actividad_extra(session: Session, faker: Fake
     assert lunes["D35"].value == "'=1+1"
 
 
+def test_formato_incluye_actividad_vacia_con_foto(
+    session: Session, faker: Faker, tmp_path, monkeypatch
+) -> None:
+    reporte = _reporte(session, faker, semana=15)
+    reporte.dias[0].actividades = [reporte.dias[0].actividades[0]]
+    nombre = "foto-d.png"
+    Image.new("RGB", (120, 90), "green").save(tmp_path / nombre)
+    reporte.dias[0].fotos.append(Foto(espacio="D", orden=1, archivo=nombre, nombre_original=nombre))
+    session.commit()
+    monkeypatch.setattr(excel_formato, "FOTOS_DIR", tmp_path)
+
+    lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
+
+    assert lunes["M35"].value == "D"
+    assert lunes["D35"].value is None
+    assert len(lunes._images) - 2 == 1
+    assert lunes._images[0].anchor._from.row + 1 == 35
+
+
 def _pixeles_columna(hoja, indice: int) -> int:
     ancho = hoja.column_dimensions[get_column_letter(indice)].width or 8.43
     return int(ancho * 7 + 5)

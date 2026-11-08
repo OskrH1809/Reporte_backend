@@ -276,7 +276,11 @@ def _llenar_dia(
     _llenar_comunes(hoja, reporte, dia, colaboradores, herramientas)
     actividades = {actividad.letra: actividad for actividad in dia.actividades}
     if con_actividades:
-        indice_mas_alto = max(LETRAS_ACTIVIDAD.index(letra) for letra in actividades)
+        letras_visibles = [
+            *actividades,
+            *(foto.espacio for foto in dia.fotos if foto.espacio in LETRAS_ACTIVIDAD),
+        ]
+        indice_mas_alto = max(LETRAS_ACTIVIDAD.index(letra) for letra in letras_visibles)
         extras = LETRAS_ACTIVIDAD[3 : indice_mas_alto + 1]
         bandas = ceil(len(extras) / 3)
         desplazamiento_bandas = 5 * bandas
