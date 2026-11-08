@@ -150,6 +150,9 @@ def _insertar_filas(hoja: Worksheet, fila: int, cantidad: int) -> None:
         )
     for numero in range(ultima_fila, fila - 1, -1):
         hoja.row_dimensions[numero + cantidad].height = hoja.row_dimensions[numero].height
+        hoja.row_dimensions[numero + cantidad].hidden = hoja.row_dimensions[numero].hidden
+    for numero in range(fila, fila + cantidad):
+        hoja.row_dimensions[numero].hidden = False
 
 
 def _insertar_actividades(

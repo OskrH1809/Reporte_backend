@@ -129,6 +129,32 @@ def test_formato_inserta_tres_bandas_hasta_j(session: Session, faker: Faker) -> 
     )
 
 
+@pytest.mark.parametrize(
+    ("letras", "semana", "desplazamiento"),
+    (("AB", 12, 0), ("ABCDE", 13, 7), ("ABCDEFGHIJ", 14, 22)),
+)
+def test_formato_no_oculta_filas_insertadas(
+    session: Session,
+    faker: Faker,
+    letras: str,
+    semana: int,
+    desplazamiento: int,
+) -> None:
+    reporte = _reporte(session, faker, semana=semana)
+    reporte.dias[0].actividades.extend(
+        Actividad(letra=letra, descripcion=faker.sentence()) for letra in letras[2:]
+    )
+    session.commit()
+
+    lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
+    ocultas = {
+        fila for fila in range(1, lunes.max_row + 1) if lunes.row_dimensions[fila].hidden is True
+    }
+
+    assert not ocultas.intersection(range(24, 32 + desplazamiento))
+    assert ocultas == set(range(37 + desplazamiento, 51 + desplazamiento))
+
+
 def test_formato_rellena_huecos_hasta_actividad_mas_alta(session: Session, faker: Faker) -> None:
     reporte = _reporte(session, faker, semana=10)
     descripcion_d = faker.sentence()
