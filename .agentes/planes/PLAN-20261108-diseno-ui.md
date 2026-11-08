@@ -1,6 +1,6 @@
 ---
 id: PLAN-20261108-diseno-ui
-estado: aprobado
+estado: cerrado
 rama: agente/diseno-ui
 stack: react
 zona_protegida: no
