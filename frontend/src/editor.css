@@ -92,12 +92,17 @@
 
 .cantidades {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.65rem;
   align-content: start;
 }
 
 .cantidades .card-header {
   margin-bottom: 0;
+}
+
+.cantidades select {
+  width: 100%;
 }
 
 .cantidad-fila {
@@ -136,15 +141,14 @@
 }
 
 .fotos-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
   gap: 0.5rem;
 }
 
 .fotos-grid figure {
   position: relative;
-  width: 120px;
-  height: 120px;
+  aspect-ratio: 1;
   margin: 0;
 }
 
@@ -230,20 +234,13 @@
     grid-template-columns: 1fr;
   }
 
-  .horas-persona {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .manual-campo {
-    grid-column: 2;
+  .horas-campo input,
+  .cantidad-fila input {
+    width: 4.25rem;
   }
 
   .cantidad-fila {
-    grid-template-columns: minmax(0, 1fr) 5.5rem;
-  }
-
-  .cantidad-fila button {
-    grid-column: 2;
+    grid-template-columns: minmax(0, 1fr) 4.25rem auto;
   }
 
   .editor .sticky-bar {

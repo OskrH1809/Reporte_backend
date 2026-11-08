@@ -53,6 +53,11 @@ function fechaDia(fechaInicio: string | undefined, desplazamiento: number) {
   return fecha.toLocaleDateString("es", { day: "2-digit", month: "2-digit" });
 }
 
+function fechaLarga(iso: string): string {
+  const [anio, mes, dia] = iso.split("-");
+  return `${dia}/${mes}/${anio}`;
+}
+
 export function EditorReporte() {
   const id = Number(useParams().id);
   const [diaActual, setDiaActual] = useState(0);
@@ -259,7 +264,7 @@ export function EditorReporte() {
           <h1>{reporte.data?.codigo ?? "Reporte"}</h1>
           <p className="subtitle">
             {reporte.data
-              ? `${reporte.data.fecha_inicio} – ${reporte.data.fecha_fin}`
+              ? `${fechaLarga(reporte.data.fecha_inicio)} – ${fechaLarga(reporte.data.fecha_fin)}`
               : "Cargando fechas…"}
           </p>
         </div>
