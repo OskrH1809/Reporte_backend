@@ -1,4 +1,4 @@
 fecha,plan,stack,tareas_plan,tareas_completadas,primera_pasada,iteraciones,pruebas_ok,pruebas_nuevas,archivos_fuera_alcance,lineas_cambiadas,bloqueos,violaciones_normas,hallazgos_seguridad,inconsistencias,minutos_plan,minutos_ejecucion,defectos_post_merge
 2026-11-05,PLAN-20261105-reportes-servicios,FastAPI+React,7,7,no,1,1,38,0,9111,0,0,0,1,20,80,
 2026-11-08,PLAN-20261108-diseno-ui,React,5,5,no,0,1,25,0,3186,0,0,0,0,15,60,
-2026-11-08,PLAN-20261108-actividades-dinamicas,FastAPI+React,5,5,no,0,1,22,0,1069,0,0,0,0,,32,
+2026-11-08,PLAN-20261108-actividades-dinamicas,FastAPI+React,5,5,no,1,1,22,0,1069,0,0,0,1,40,32,

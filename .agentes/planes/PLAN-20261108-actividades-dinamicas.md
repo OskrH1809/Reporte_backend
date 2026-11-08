@@ -1,6 +1,6 @@
 ---
 id: PLAN-20261108-actividades-dinamicas
-estado: aprobado        # borrador | aprobado | en_ejecucion | cerrado
+estado: en_ejecucion      # borrador | aprobado | en_ejecucion | cerrado
 rama: agente/actividades-dinamicas
 rama_base: agente/diseno-ui   # main todavía no tiene el código; crear la rama desde aquí
 stack: fastapi
@@ -194,3 +194,38 @@ rg -n "\"A\", \"B\", \"C\"\]|'A', 'B', 'C'\)" backend/app frontend/src   # solo 
 - Supuesto: la rama sale de `agente/diseno-ui` porque `main` todavía no tiene el código. Si Oscar fusiona antes, la base es `main`.
 - Supuesto: en el formato actual, A, C y las extras conservan un solo renglón de 253.5 pt (4 fotos en 2×2 quedan a la mitad del alto). B y "Antes y después" siguen con 2 renglones. Si se quieren las fotos más grandes, la alternativa es darle 2 renglones a cada actividad (la hoja crece el doble).
 - Sin preguntas abiertas.
+
+## Iteración 1
+Origen: `REVISION-20261108-actividades-dinamicas.md`. Mismas reglas, mismas medidas de seguridad. Un commit por tarea.
+
+### Tarea 1.1 — Recorrer también las filas ocultas al insertar filas
+- **Archivos:** `backend/app/services/excel_formato.py` (modificar `_insertar_filas`, línea ~152), `backend/tests/test_excel_formato.py` (modificar).
+- **Problema:** la plantilla `base_actividades` trae **ocultas las filas 37–50** (debajo del mapa combinado A35:T50). `_insertar_filas` solo copia `height`, así que la marca `hidden` se queda en 37–50 y tapa los renglones recorridos. Con A–J, las actividades A–I y sus fotos no se ven en el Excel ni en el PDF; con D–E, quedan ocultas partes de la tabla.
+- **Qué hacer:** en el ciclo de abajo hacia arriba de `_insertar_filas`, copia por fila `height` **y** `hidden` (`hoja.row_dimensions[n + cantidad].hidden = hoja.row_dimensions[n].hidden`). Después, para las filas que quedan libres (`fila .. fila + cantidad - 1`), pon `hidden = False`; quien inserta ya fija su alto.
+- **Criterio de aceptación:** una prueba nueva `test_formato_no_oculta_filas_insertadas` con A–J (y otra con A–E) comprueba:
+  - Ninguna fila entre 24 y `31 + desplazamiento` (bandas, encabezado, renglones de actividad y "Antes y después") tiene `hidden=True`.
+  - Las filas ocultas son exactamente `37 + desplazamiento .. 50 + desplazamiento`.
+  - Con solo A–B, las ocultas siguen siendo 37–50 (regresión).
+- **Pruebas requeridas:** A–B (regresión), A–E (1 banda), A–J (3 bandas).
+
+### Tarea 1.2 — No perder una actividad vacía que ya tiene fotos
+- **Archivos:** `frontend/src/actividades.ts`, `frontend/src/actividades.test.ts`, `frontend/src/pages/EditorReporte.tsx` (las dos llamadas a `armarActividades`), `backend/app/services/excel_formato.py:276`, `backend/tests/test_excel_formato.py`.
+- **Problema:** si el usuario agrega D, sube fotos a D y no captura descripción ni personas, D no se guarda (las actividades vacías se filtran). Al recargar, D desaparece del editor y sus fotos ya no se ven ni se pueden borrar. Además, el formato actual no las exporta, porque `extras` solo mira `dia.actividades`.
+- **Qué hacer:**
+  1. `armarActividades(guardadas: Actividad[], fotos: Foto[] = [])`: la letra más alta se calcula sobre las actividades guardadas **y** los `foto.espacio` que sean letra (se ignora `"AD"`). En `EditorReporte.tsx` pasa `datos.fotos` y `resultado.fotos`.
+  2. En `_llenar_dia`, `indice_mas_alto` considera también `foto.espacio` de `dia.fotos` que esté en `LETRAS_ACTIVIDAD`, para que el renglón exista y las fotos se exporten.
+- **Criterio de aceptación:**
+  - `armarActividades([A], [foto espacio D])` → A, B, C, D.
+  - `armarActividades([A], [foto AD])` → A, B.
+  - En el backend, un día con actividad A y una foto en D genera el renglón D (`M` = "D", descripción vacía) con 1 imagen en su área.
+- **Pruebas requeridas:** los tres casos anteriores.
+
+### Tarea 1.3 — Tipos y constante de ruta de fotos
+- **Archivos:** `backend/app/services/excel_formato.py`.
+- **Qué hacer:**
+  - Cambia `actividades: dict[str, object]` (líneas 156 y 177) por `dict[str, Actividad]`, importando `Actividad` desde `app.models`.
+  - Elimina `FOTOS_DIR = Path("/data/fotos")` (línea 24) y usa `fotos.FOTOS_DIR` de `app.services.fotos`, como ya hace `excel_mejorado.py`. Si alguna prueba parchea `excel_formato.FOTOS_DIR`, que parchee `app.services.fotos.FOTOS_DIR`.
+- **Criterio de aceptación:** `rg -n 'Path\("/data/fotos"\)' backend/app` → solo `services/fotos.py`; `ruff check .` y `pytest -q` pasan.
+
+### Verificación de la iteración
+Los mismos comandos de "Verificación final". Además, genera con datos sintéticos un día A–J con fotos (1, 2, 3 y 4 por espacio), conviértelo a PDF y confirma en el reporte que la hoja del lunes muestra los 10 renglones de actividad.
