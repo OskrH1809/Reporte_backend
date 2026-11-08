@@ -14,6 +14,7 @@ import {
   verReporte,
 } from "../api/reportes";
 import { EditorReporte } from "../pages/EditorReporte";
+import { AvisosProvider } from "./Avisos";
 import { SelectorColaboradores } from "./SelectorColaboradores";
 import { SelectorFotos } from "./SelectorFotos";
 import { TablaCantidades } from "./TablaCantidades";
@@ -65,11 +66,13 @@ function paginaEditor() {
   });
   return render(
     <QueryClientProvider client={cliente}>
-      <MemoryRouter initialEntries={["/reportes/1"]}>
-        <Routes>
-          <Route path="/reportes/:id" element={<EditorReporte />} />
-        </Routes>
-      </MemoryRouter>
+      <AvisosProvider>
+        <MemoryRouter initialEntries={["/reportes/1"]}>
+          <Routes>
+            <Route path="/reportes/:id" element={<EditorReporte />} />
+          </Routes>
+        </MemoryRouter>
+      </AvisosProvider>
     </QueryClientProvider>,
   );
 }
@@ -137,7 +140,14 @@ it("agrega un material con cantidad inicial", async () => {
     screen.getByLabelText("Agregar materiales"),
     "1",
   );
-  expect(onChange).toHaveBeenCalledWith([{ material_id: 1, cantidad: 1 }]);
+  expect(onChange).toHaveBeenCalledWith([
+    {
+      material_id: 1,
+      cantidad: 1,
+      nombre: "Elemento sintético",
+      unidad: "unidad",
+    },
+  ]);
 });
 
 it("muestra el contador y bloquea un espacio lleno", () => {
@@ -174,7 +184,11 @@ it("muestra el contador y bloquea un espacio lleno", () => {
 it("conserva el borrador después de subir una foto", async () => {
   const usuario = userEvent.setup();
   paginaEditor();
-  const descripcion = (await screen.findAllByLabelText("Descripción"))[0]!;
+  const capturar = (
+    await screen.findAllByRole("button", { name: "Capturar" })
+  )[0]!;
+  await usuario.click(capturar);
+  const descripcion = screen.getByLabelText("Descripción");
   await usuario.type(descripcion, "Descripción sintética");
   await usuario.upload(
     screen.getByLabelText("Fotos Actividad A"),
@@ -197,10 +211,61 @@ it("muestra el error al subir una foto", async () => {
   vi.mocked(subirFotos).mockRejectedValue(new Error("Fallo sintético"));
   const usuario = userEvent.setup();
   paginaEditor();
-  await screen.findAllByLabelText("Descripción");
+  await screen.findAllByRole("button", { name: "Capturar" });
   await usuario.upload(
     screen.getByLabelText("Fotos Actividad A"),
     new File(["imagen sintética"], "sintetica.png", { type: "image/png" }),
   );
   expect(await screen.findByRole("alert")).toHaveTextContent("Fallo sintético");
+});
+
+it("deshabilita Guardar cuando una verificación tiene error", async () => {
+  vi.mocked(listarCatalogo).mockImplementation((tipo) =>
+    Promise.resolve(tipo === "colaboradores" ? [catalogo] : []),
+  );
+  vi.mocked(verDia).mockResolvedValue({
+    ...dia,
+    actividades: [
+      {
+        letra: "A",
+        descripcion: "Actividad sintética",
+        asignaciones: [
+          {
+            colaborador_id: 1,
+            horas: 9,
+            horas_manual: true,
+          },
+        ],
+      },
+    ],
+  });
+  paginaEditor();
+  const guardarBoton = await screen.findByRole("button", { name: "Guardar" });
+  expect(guardarBoton).toBeDisabled();
+  await waitFor(() =>
+    expect(guardarBoton).toHaveAttribute(
+      "title",
+      "Corrige los errores de verificación antes de guardar.",
+    ),
+  );
+});
+
+it("despliega una actividad vacía al pulsar Capturar", async () => {
+  const usuario = userEvent.setup();
+  paginaEditor();
+  const botones = await screen.findAllByRole("button", { name: "Capturar" });
+  expect(screen.queryByLabelText("Descripción")).not.toBeInTheDocument();
+  await usuario.click(botones[0]!);
+  expect(screen.getByLabelText("Descripción")).toBeInTheDocument();
+});
+
+it("muestra un aviso al guardar el día", async () => {
+  const usuario = userEvent.setup();
+  paginaEditor();
+  await usuario.type(
+    await screen.findByLabelText("Observación"),
+    "Feriado sintético",
+  );
+  await usuario.click(screen.getByRole("button", { name: "Guardar" }));
+  expect(await screen.findByText("Día guardado.")).toBeInTheDocument();
 });

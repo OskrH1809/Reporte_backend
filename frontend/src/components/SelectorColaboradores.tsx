@@ -55,47 +55,49 @@ export function SelectorColaboradores({
           </button>
         ))}
       </div>
-      {valor.map((asignacion) => (
-        <div className="horas-persona" key={asignacion.colaborador_id}>
-          <span>
-            {asignacion.colaborador_nombre ??
-              colaboradores.find(
-                (item) => item.id === asignacion.colaborador_id,
-              )?.nombre}
-          </span>
-          <label>
-            Horas
-            <input
-              aria-label={`Horas de ${asignacion.colaborador_nombre ?? asignacion.colaborador_id}`}
-              type="number"
-              min={0}
-              max={24}
-              step="0.25"
-              value={asignacion.horas ?? ""}
-              onChange={(event) =>
-                actualizar(asignacion.colaborador_id, {
-                  horas: event.target.value
-                    ? Number(event.target.value)
-                    : undefined,
-                  horas_manual: Boolean(event.target.value),
-                })
-              }
-            />
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={asignacion.horas_manual}
-              onChange={(event) =>
-                actualizar(asignacion.colaborador_id, {
-                  horas_manual: event.target.checked,
-                })
-              }
-            />
-            Manual
-          </label>
-        </div>
-      ))}
+      <div className="horas-grid">
+        {valor.map((asignacion) => (
+          <div className="horas-persona" key={asignacion.colaborador_id}>
+            <span>
+              {asignacion.colaborador_nombre ??
+                colaboradores.find(
+                  (item) => item.id === asignacion.colaborador_id,
+                )?.nombre}
+            </span>
+            <label className="horas-campo">
+              <span>Horas</span>
+              <input
+                aria-label={`Horas de ${asignacion.colaborador_nombre ?? asignacion.colaborador_id}`}
+                type="number"
+                min={0}
+                max={24}
+                step="0.25"
+                value={asignacion.horas ?? ""}
+                onChange={(event) =>
+                  actualizar(asignacion.colaborador_id, {
+                    horas: event.target.value
+                      ? Number(event.target.value)
+                      : undefined,
+                    horas_manual: Boolean(event.target.value),
+                  })
+                }
+              />
+            </label>
+            <label className="manual-campo">
+              <input
+                type="checkbox"
+                checked={asignacion.horas_manual}
+                onChange={(event) =>
+                  actualizar(asignacion.colaborador_id, {
+                    horas_manual: event.target.checked,
+                  })
+                }
+              />
+              Manual
+            </label>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

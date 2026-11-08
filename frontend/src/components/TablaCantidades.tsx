@@ -20,11 +20,22 @@ export function TablaCantidades({
   const usados = new Set(valor.map((item) => item[campo]));
   function agregar(id: number) {
     if (!id || usados.has(id)) return;
-    onChange([...valor, { [campo]: id, cantidad: 1 }]);
+    const item = catalogo.find((entrada) => entrada.id === id);
+    onChange([
+      ...valor,
+      {
+        [campo]: id,
+        cantidad: 1,
+        nombre: item?.nombre,
+        unidad: item?.unidad ?? undefined,
+      },
+    ]);
   }
   return (
-    <section className="cantidades">
-      <h3>{titulo}</h3>
+    <section className="card cantidades">
+      <div className="card-header">
+        <h2 className="card-title">{titulo}</h2>
+      </div>
       <select
         aria-label={`Agregar ${titulo.toLowerCase()}`}
         value=""
@@ -40,6 +51,9 @@ export function TablaCantidades({
             </option>
           ))}
       </select>
+      {valor.length === 0 ? (
+        <p className="empty">No hay elementos registrados.</p>
+      ) : null}
       {valor.map((cantidad) => {
         const id = cantidad[campo];
         const item = catalogo.find((entrada) => entrada.id === id);
@@ -67,6 +81,7 @@ export function TablaCantidades({
             />
             <button
               type="button"
+              className="btn-ghost btn-sm"
               onClick={() =>
                 onChange(valor.filter((entrada) => entrada[campo] !== id))
               }
