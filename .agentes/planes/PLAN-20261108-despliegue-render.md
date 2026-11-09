@@ -1,6 +1,6 @@
 ---
 id: PLAN-20261108-despliegue-render
-estado: en_ejecucion      # borrador | aprobado | en_ejecucion | cerrado
+estado: cerrado           # borrador | aprobado | en_ejecucion | cerrado
 rama: agente/despliegue-render
 rama_base: agente/modo-sin-almacenar   # después de aceptar modo-sin-almacenar y reabrir-excel
 stack: fastapi

@@ -4,3 +4,4 @@ fecha,plan,stack,tareas_plan,tareas_completadas,primera_pasada,iteraciones,prueb
 2026-11-08,PLAN-20261108-actividades-dinamicas,FastAPI+React,5,5,no,1,1,28,0,1169,0,0,0,1,40,42,
 2026-11-08,PLAN-20261108-modo-sin-almacenar,FastAPI+React,7,7,no,2,1,23,0,2712,0,0,0,0,30,41,
 2026-11-08,PLAN-20261108-reabrir-excel,FastAPI+React,6,6,sí,0,1,,0,1877,0,0,0,0,25,,
+2026-11-08,PLAN-20261108-despliegue-render,FastAPI+React,6,6,sí,0,1,25,0,,0,0,0,0,30,,
