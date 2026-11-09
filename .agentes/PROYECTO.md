@@ -70,5 +70,6 @@ docker-compose.yml  Makefile  .env.example  README.md
 | Modelo + migración | `backend/app/models/` + `backend/alembic/versions/` |
 | Servicio | `backend/app/services/calculos.py` |
 | Generación de Excel | `backend/app/services/reporte_memoria.py` |
+| Importación de Excel | `backend/app/services/importar_excel.py` |
 | Componente UI | `frontend/src/pages/Catalogos.tsx` |
 | Formulario de día | `frontend/src/components/FormularioDia.tsx` |
