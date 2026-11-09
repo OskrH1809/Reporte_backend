@@ -270,3 +270,11 @@ Origen: el bloqueo del reporte (la tarea 5 agotó 3 intentos con las correccione
 - **Git:** solo `git add` y `git commit` locales en `agente/modo-sin-almacenar`. Prohibido `push`, `pull`, `fetch`, `merge` a otras ramas, `gh` o cualquier acción contra GitHub.
 - No toques `data/`, `data.antes-actividades/` ni el worktree `../Proyecto_Tania-claude`.
 - Actualiza el mismo reporte (`REPORTE-20261108-modo-sin-almacenar.md`, con `iteracion: 1`).
+
+## Iteración 2
+Origen: bloqueo de la tarea 6 (la corrección de tipos quedó aplicada pero sin verificar).
+
+- **Tarea 6:** Claude verificó el árbol de trabajo actual (`lint`, `format:check`, `test` con 61 pruebas en 13 archivos, y `build`), y todo está en verde. Haz el commit de la tarea 6 con los archivos `semana.ts`, `semana.test.ts`, `pages/EditorSemana.tsx`, `pages/EditorSemana.test.tsx`, `components/BotonDescarga.tsx`, `components/BotonDescarga.test.tsx`, `App.tsx` y `App.test.tsx`, sin cambios de código adicionales.
+- **Tarea 7:** documentación, como dice el plan (3 intentos).
+- **Verificación final** del plan completa, con su salida en el reporte. Las pruebas manuales con `make up` **no** se hacen: Oscar tiene levantada la versión anterior y el respaldo de datos sin versionar. Anótalo como pendiente para la revisión de Claude.
+- **Git:** solo `git add` y `git commit` locales; prohibido `push`, `pull`, `fetch`, `merge`, `gh` o cualquier acción contra GitHub. No toques `data/`, `data.antes-actividades/` ni `../Proyecto_Tania-claude`.
