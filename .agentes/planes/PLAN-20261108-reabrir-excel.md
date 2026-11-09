@@ -1,6 +1,6 @@
 ---
 id: PLAN-20261108-reabrir-excel
-estado: aprobado        # borrador | aprobado | en_ejecucion | cerrado
+estado: cerrado         # borrador | aprobado | en_ejecucion | cerrado
 rama: agente/modo-sin-almacenar     # misma rama; se ejecuta DESPUÉS de PLAN-20261108-modo-sin-almacenar
 stack: fastapi
 zona_protegida: no
