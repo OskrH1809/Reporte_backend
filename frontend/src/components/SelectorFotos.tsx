@@ -1,13 +1,21 @@
-import type { Foto } from "../api/reportes";
+import type { Letra } from "../api/reportes";
+
+export interface FotoVista {
+  id: string | number;
+  espacio: Letra | "AD";
+  url: string;
+  nombre_original: string;
+  orden?: number;
+}
 
 interface Props {
-  espacio: Foto["espacio"];
+  espacio: Letra | "AD";
   etiqueta: string;
   maximo: number;
-  fotos: Foto[];
+  fotos: FotoVista[];
   subiendo?: boolean;
   onSubir: (archivos: File[]) => void;
-  onEliminar: (id: number) => void;
+  onEliminar: (id: string | number) => void;
   onExceso?: (agregadas: number, maximo: number) => void;
 }
 

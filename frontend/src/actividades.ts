@@ -35,7 +35,7 @@ export function siguienteLetra(actividades: Actividad[]): Letra | undefined {
 export function puedeQuitar(
   actividad: Actividad,
   esUltima: boolean,
-  fotos: Foto[],
+  fotos: Pick<Foto, "espacio">[],
 ): boolean {
   return (
     LETRAS.indexOf(actividad.letra) > 1 &&

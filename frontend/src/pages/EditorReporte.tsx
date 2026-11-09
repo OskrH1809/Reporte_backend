@@ -14,23 +14,14 @@ import {
   verDia,
   verReporte,
 } from "../api/reportes";
-import {
-  armarActividades,
-  espaciosFotos,
-  puedeQuitar,
-  siguienteLetra,
-} from "../actividades";
+import { armarActividades } from "../actividades";
 import { calcularHoras } from "../calculos";
 import { Confirmar, useAvisos } from "../components/Avisos";
-import { SelectorColaboradores } from "../components/SelectorColaboradores";
-import { SelectorFotos } from "../components/SelectorFotos";
-import { TablaCantidades } from "../components/TablaCantidades";
-import { verificarDia } from "../verificaciones";
+import { FormularioDia, SelectorFirmas } from "../components/FormularioDia";
 import "../editor.css";
 
 const nombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const nombresCortos = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-
 const vacio: DiaInput = {
   observacion: "",
   texto_fotos: "",
@@ -38,7 +29,6 @@ const vacio: DiaInput = {
   materiales: [],
   actividades: armarActividades([]),
 };
-
 const mensajeError = (error: unknown, alternativo: string) =>
   error instanceof Error ? error.message : alternativo;
 
@@ -59,7 +49,8 @@ export function EditorReporte() {
   const [diaActual, setDiaActual] = useState(0);
   const [borrador, setBorrador] = useState<DiaInput>(vacio);
   const [sucio, setSucio] = useState(false);
-  const [subiendoEspacio, setSubiendoEspacio] = useState<string>();
+  const [hayErrores, setHayErrores] = useState(false);
+  const [subiendoEspacio, setSubiendoEspacio] = useState<Foto["espacio"]>();
   const [fotoPendiente, setFotoPendiente] = useState<Foto>();
   const [diaPendiente, setDiaPendiente] = useState<number>();
   const [actividadesAbiertas, setActividadesAbiertas] = useState(
@@ -161,19 +152,6 @@ export function EditorReporte() {
   const fotos = dia.data?.fotos ?? [];
   const jornada = diaActual === 5 ? 5 : 8;
   const actividadesCalculadas = calcularHoras(borrador.actividades, jornada);
-  const nombresColaboradores = new Map(
-    (colaboradores.data ?? []).map((item) => [item.id, item.nombre]),
-  );
-  const verificaciones = verificarDia({
-    actividades: actividadesCalculadas,
-    herramientas: borrador.herramientas,
-    materiales: borrador.materiales,
-    fotos,
-    observacion: borrador.observacion,
-    jornada,
-    nombres: nombresColaboradores,
-  });
-  const hayErrores = verificaciones.some((item) => item.nivel === "error");
   const personas = new Set(
     actividadesCalculadas.flatMap((actividad) =>
       actividad.asignaciones.map((item) => item.colaborador_id),
@@ -188,44 +166,10 @@ export function EditorReporte() {
       ),
     0,
   );
-
   const cambiar = (valor: DiaInput) => {
     setBorrador(valor);
     setSucio(true);
   };
-  function cambiarActividad(indice: number, actividad: Actividad) {
-    cambiar({
-      ...borrador,
-      actividades: borrador.actividades.map((item, posicion) =>
-        posicion === indice ? actividad : item,
-      ),
-    });
-  }
-  function agregarActividad() {
-    const letra = siguienteLetra(borrador.actividades);
-    if (!letra) return;
-    cambiar({
-      ...borrador,
-      actividades: [
-        ...borrador.actividades,
-        { letra, descripcion: "", asignaciones: [] },
-      ],
-    });
-    setActividadesAbiertas((actuales) => new Set(actuales).add(letra));
-  }
-  function quitarActividad(actividad: Actividad) {
-    cambiar({
-      ...borrador,
-      actividades: borrador.actividades.filter(
-        (item) => item.letra !== actividad.letra,
-      ),
-    });
-    setActividadesAbiertas((actuales) => {
-      const nuevas = new Set(actuales);
-      nuevas.delete(actividad.letra);
-      return nuevas;
-    });
-  }
   function confirmarCambioDia(nuevo: number) {
     diaInicializado.current = undefined;
     setDiaActual(nuevo);
@@ -233,11 +177,8 @@ export function EditorReporte() {
   }
   function cambiarDia(nuevo: number) {
     if (nuevo === diaActual) return;
-    if (sucio) {
-      setDiaPendiente(nuevo);
-      return;
-    }
-    confirmarCambioDia(nuevo);
+    if (sucio) setDiaPendiente(nuevo);
+    else confirmarCambioDia(nuevo);
   }
   function eliminarFotoConfirmada() {
     if (!fotoPendiente) return;
@@ -256,9 +197,6 @@ export function EditorReporte() {
   }
 
   const error = reporte.error ?? dia.error ?? editarFirmas.error;
-  const faltanFirmas =
-    !reporte.data?.elaborado_por_id || !reporte.data.revisado_por_id;
-  const proximaLetra = siguienteLetra(borrador.actividades);
   return (
     <section className="editor stack">
       <header className="page-header">
@@ -292,60 +230,12 @@ export function EditorReporte() {
         </div>
       </header>
 
-      <section className="card firmas-card">
-        <div className="card-header">
-          <h2 className="card-title">Firmas</h2>
-          {faltanFirmas ? (
-            <span className="badge badge-warn">Faltan firmas</span>
-          ) : null}
-        </div>
-        <div className="grid-2">
-          <label className="field">
-            <span>Elabora</span>
-            <select
-              value={reporte.data?.elaborado_por_id ?? ""}
-              onChange={(event) =>
-                editarFirmas.mutate({
-                  elaborado_por_id: event.target.value
-                    ? Number(event.target.value)
-                    : null,
-                })
-              }
-            >
-              <option value="">Sin seleccionar</option>
-              {firmantes.data
-                ?.filter((item) => item.tipo === "elabora")
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.nombre}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Revisa</span>
-            <select
-              value={reporte.data?.revisado_por_id ?? ""}
-              onChange={(event) =>
-                editarFirmas.mutate({
-                  revisado_por_id: event.target.value
-                    ? Number(event.target.value)
-                    : null,
-                })
-              }
-            >
-              <option value="">Sin seleccionar</option>
-              {firmantes.data
-                ?.filter((item) => item.tipo === "revisa")
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.nombre}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
-      </section>
+      <SelectorFirmas
+        firmantes={firmantes.data ?? []}
+        elaboradoPorId={reporte.data?.elaborado_por_id ?? null}
+        revisadoPorId={reporte.data?.revisado_por_id ?? null}
+        onChange={(campo, valor) => editarFirmas.mutate({ [campo]: valor })}
+      />
 
       <div className="segmented dias-tabs" role="tablist">
         {nombres.map((nombre, indice) => (
@@ -362,232 +252,51 @@ export function EditorReporte() {
           </button>
         ))}
       </div>
-
       {error ? (
         <p role="alert" className="alert alert-error">
           {error.message}
         </p>
       ) : null}
 
-      <div className="actividades-stack">
-        {actividadesCalculadas.map((actividad, indice) => {
-          const vacia =
-            !actividad.descripcion && actividad.asignaciones.length === 0;
-          const abierta = !vacia || actividadesAbiertas.has(actividad.letra);
-          const sePuedeQuitar = puedeQuitar(
-            actividad,
-            indice === actividadesCalculadas.length - 1,
-            fotos,
-          );
-          const horas = actividad.asignaciones.reduce(
-            (total, item) => total + (item.horas ?? 0),
-            0,
-          );
-          if (!abierta) {
-            return (
-              <section className="card actividad-plegada" key={actividad.letra}>
-                <strong>
-                  Actividad {actividad.letra} ·{" "}
-                  <span className="muted">sin capturar</span>
-                </strong>
-                <div className="cluster">
-                  {sePuedeQuitar ? (
-                    <button
-                      type="button"
-                      className="btn-secondary btn-sm"
-                      onClick={() => quitarActividad(actividad)}
-                    >
-                      Quitar
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    onClick={() =>
-                      setActividadesAbiertas((actuales) =>
-                        new Set(actuales).add(actividad.letra),
-                      )
-                    }
-                  >
-                    Capturar
-                  </button>
-                </div>
-              </section>
-            );
-          }
-          return (
-            <section className="card actividad-card" key={actividad.letra}>
-              <div className="card-header">
-                <h2 className="card-title">Actividad {actividad.letra}</h2>
-                <div className="cluster">
-                  <span className="badge badge-muted">
-                    {actividad.asignaciones.length} personas
-                  </span>
-                  <span className="badge badge-muted num">
-                    {horas.toLocaleString("es")} h-h
-                  </span>
-                  {sePuedeQuitar ? (
-                    <button
-                      type="button"
-                      className="btn-secondary btn-sm"
-                      onClick={() => quitarActividad(actividad)}
-                    >
-                      Quitar
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              <label className="field">
-                <span>Descripción</span>
-                <textarea
-                  rows={3}
-                  value={actividad.descripcion}
-                  onChange={(event) =>
-                    cambiarActividad(indice, {
-                      ...actividad,
-                      descripcion: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <SelectorColaboradores
-                colaboradores={colaboradores.data ?? []}
-                valor={actividad.asignaciones}
-                onChange={(asignaciones) =>
-                  cambiarActividad(indice, { ...actividad, asignaciones })
-                }
-              />
-            </section>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        className="btn-secondary"
-        disabled={proximaLetra === undefined}
-        title={
-          proximaLetra === undefined
-            ? "Máximo 10 actividades por día"
-            : undefined
+      <FormularioDia
+        dia={borrador}
+        onChange={cambiar}
+        jornada={jornada}
+        catalogos={{
+          colaboradores: colaboradores.data ?? [],
+          herramientas: herramientas.data ?? [],
+          materiales: materiales.data ?? [],
+        }}
+        fotos={fotos}
+        subiendoEspacio={subiendoEspacio}
+        onSubirFotos={(espacio, archivos) => {
+          setSubiendoEspacio(espacio);
+          void subirFotos(id, diaActual, espacio, archivos)
+            .then(() => {
+              avisar("Foto subida.");
+              return queryClient.invalidateQueries({
+                queryKey: ["dia", id, diaActual],
+              });
+            })
+            .catch((error: unknown) =>
+              avisar(mensajeError(error, "Error al subir la foto."), "error"),
+            )
+            .finally(() => setSubiendoEspacio(undefined));
+        }}
+        onEliminarFoto={(fotoId) =>
+          setFotoPendiente(fotos.find((foto) => foto.id === fotoId))
         }
-        onClick={agregarActividad}
-      >
-        Agregar actividad
-      </button>
-
-      <div className="grid-2">
-        <TablaCantidades
-          titulo="Herramientas"
-          tipo="herramienta"
-          catalogo={herramientas.data ?? []}
-          valor={borrador.herramientas}
-          onChange={(valor) => cambiar({ ...borrador, herramientas: valor })}
-        />
-        <TablaCantidades
-          titulo="Materiales"
-          tipo="material"
-          catalogo={materiales.data ?? []}
-          valor={borrador.materiales}
-          onChange={(valor) => cambiar({ ...borrador, materiales: valor })}
-        />
-      </div>
-
-      <section className="card">
-        <div className="card-header">
-          <h2 className="card-title">Fotos</h2>
-        </div>
-        <div className="fotos-secciones">
-          {espaciosFotos(borrador.actividades).map(
-            ([espacio, etiqueta, maximo]) => (
-              <SelectorFotos
-                key={espacio}
-                espacio={espacio}
-                etiqueta={etiqueta}
-                maximo={maximo}
-                fotos={fotos}
-                subiendo={subiendoEspacio === espacio}
-                onExceso={(agregadas, limite) =>
-                  avisar(
-                    `Solo se agregaron ${agregadas} foto(s); el máximo es ${limite}.`,
-                    "info",
-                  )
-                }
-                onSubir={(archivos) => {
-                  setSubiendoEspacio(espacio);
-                  void subirFotos(id, diaActual, espacio, archivos)
-                    .then(() => {
-                      avisar("Foto subida.");
-                      return queryClient.invalidateQueries({
-                        queryKey: ["dia", id, diaActual],
-                      });
-                    })
-                    .catch((error: unknown) =>
-                      avisar(
-                        mensajeError(error, "Error al subir la foto."),
-                        "error",
-                      ),
-                    )
-                    .finally(() => setSubiendoEspacio(undefined));
-                }}
-                onEliminar={(fotoId) =>
-                  setFotoPendiente(fotos.find((foto) => foto.id === fotoId))
-                }
-              />
-            ),
-          )}
-        </div>
-      </section>
-
-      <div className="grid-2 textos-dia">
-        <label className="field card">
-          <span>Texto de fotos</span>
-          <textarea
-            rows={3}
-            value={borrador.texto_fotos}
-            onChange={(event) =>
-              cambiar({ ...borrador, texto_fotos: event.target.value })
-            }
-          />
-        </label>
-        <label className="field card">
-          <span>Observación</span>
-          <textarea
-            rows={3}
-            value={borrador.observacion}
-            onChange={(event) =>
-              cambiar({ ...borrador, observacion: event.target.value })
-            }
-          />
-        </label>
-      </div>
-
-      <section className="card verificacion-card">
-        <div className="card-header">
-          <h2 className="card-title">Verificación</h2>
-        </div>
-        {verificaciones.length === 0 && !dia.data?.advertencias.length ? (
-          <p className="alert alert-ok" role="status">
-            Todo listo para guardar.
-          </p>
-        ) : (
-          <div className="stack avisos-verificacion">
-            {verificaciones.map((item, indice) => (
-              <p
-                key={`${item.seccion}-${item.mensaje}-${indice}`}
-                className={`alert ${item.nivel === "error" ? "alert-error" : "alert-warn"}`}
-                role={item.nivel === "error" ? "alert" : "status"}
-              >
-                {item.mensaje}
-              </p>
-            ))}
-            {dia.data?.advertencias.map((aviso) => (
-              <p key={aviso} className="alert alert-warn" role="status">
-                {aviso}
-              </p>
-            ))}
-          </div>
-        )}
-      </section>
+        actividadesAbiertas={actividadesAbiertas}
+        setActividadesAbiertas={setActividadesAbiertas}
+        advertencias={dia.data?.advertencias}
+        onExcesoFotos={(agregadas, limite) =>
+          avisar(
+            `Solo se agregaron ${agregadas} foto(s); el máximo es ${limite}.`,
+            "info",
+          )
+        }
+        onVerificacion={setHayErrores}
+      />
 
       <aside className="sticky-bar">
         <strong className="num">
@@ -618,9 +327,9 @@ export function EditorReporte() {
         titulo="Cambiar de día"
         mensaje="Hay cambios sin guardar. ¿Cambiar de día?"
         textoConfirmar="Cambiar de día"
-        onConfirmar={() => {
-          if (diaPendiente !== undefined) confirmarCambioDia(diaPendiente);
-        }}
+        onConfirmar={() =>
+          diaPendiente !== undefined && confirmarCambioDia(diaPendiente)
+        }
         onCancelar={() => setDiaPendiente(undefined)}
       />
       <Confirmar

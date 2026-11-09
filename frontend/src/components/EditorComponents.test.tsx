@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { type Catalogo, listarCatalogo } from "../api/catalogos";
 import {
   LETRAS,
+  type DiaInput,
   editarReporte,
   eliminarFoto,
   guardarDia,
@@ -16,6 +17,7 @@ import {
 } from "../api/reportes";
 import { EditorReporte } from "../pages/EditorReporte";
 import { AvisosProvider } from "./Avisos";
+import { FormularioDia } from "./FormularioDia";
 import { SelectorColaboradores } from "./SelectorColaboradores";
 import { SelectorFotos } from "./SelectorFotos";
 import { TablaCantidades } from "./TablaCantidades";
@@ -180,6 +182,41 @@ it("muestra el contador y bloquea un espacio lleno", () => {
   );
   expect(screen.getByText("2/2")).toBeInTheDocument();
   expect(screen.getByLabelText("Fotos Actividad A")).toBeDisabled();
+});
+
+it("FormularioDia agrega una actividad y avisa el cambio", async () => {
+  const onChange = vi.fn();
+  render(
+    <FormularioDia
+      dia={{
+        observacion: "",
+        texto_fotos: "",
+        actividades: [
+          { letra: "A", descripcion: "", asignaciones: [] },
+          { letra: "B", descripcion: "", asignaciones: [] },
+        ],
+        herramientas: [],
+        materiales: [],
+      }}
+      onChange={onChange}
+      jornada={8}
+      catalogos={{ colaboradores: [], herramientas: [], materiales: [] }}
+      fotos={[]}
+      onSubirFotos={vi.fn()}
+      onEliminarFoto={vi.fn()}
+      actividadesAbiertas={new Set()}
+      setActividadesAbiertas={vi.fn()}
+    />,
+  );
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Agregar actividad" }),
+  );
+
+  const cambiado = onChange.mock.calls[0]?.[0] as DiaInput;
+  expect(cambiado.actividades.map((actividad) => actividad.letra)).toContain(
+    "C",
+  );
 });
 
 it("conserva el borrador después de subir una foto", async () => {

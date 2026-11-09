@@ -10,7 +10,7 @@ interface EntradaVerificacion {
   actividades: Actividad[];
   herramientas: Cantidad[];
   materiales: Cantidad[];
-  fotos: Foto[];
+  fotos: Pick<Foto, "espacio">[];
   observacion: string;
   jornada: number;
   nombres: Map<number, string>;
