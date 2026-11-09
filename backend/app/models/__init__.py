@@ -9,6 +9,7 @@ from app.models.reportes import (
     Foto,
     Reporte,
 )
+from app.models.usuarios import Usuario
 
 __all__ = [
     "Actividad",
@@ -23,4 +24,5 @@ __all__ = [
     "Herramienta",
     "Material",
     "Reporte",
+    "Usuario",
 ]

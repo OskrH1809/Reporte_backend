@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 class DomainError(Exception):
     status_code = 500
     code = "domain_error"
+    headers: dict[str, str] | None = None
 
     def __init__(self, detail: str) -> None:
         super().__init__(detail)
@@ -49,6 +50,21 @@ class SpaceFullError(InvalidInputError):
     code = "espacio_lleno"
 
 
+class NoAutenticadoError(DomainError):
+    status_code = 401
+    code = "no_autenticado"
+    headers = {"WWW-Authenticate": "Bearer"}
+
+
+class CredencialesInvalidasError(NoAutenticadoError):
+    code = "credenciales_invalidas"
+
+
+class DemasiadosIntentosError(DomainError):
+    status_code = 429
+    code = "demasiados_intentos"
+
+
 class PdfError(DomainError):
     status_code = 500
     code = "pdf_error"
@@ -58,7 +74,9 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def handle_domain_error(_request: Request, error: DomainError) -> JSONResponse:
         return JSONResponse(
-            {"detail": error.detail, "code": error.code}, status_code=error.status_code
+            {"detail": error.detail, "code": error.code},
+            status_code=error.status_code,
+            headers=error.headers,
         )
 
     @app.exception_handler(RequestValidationError)
