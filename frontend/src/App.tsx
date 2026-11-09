@@ -1,6 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, NavLink, Outlet, Route, Routes } from "react-router";
+import {
+  BrowserRouter,
+  Navigate,
+  NavLink,
+  Outlet,
+  Route,
+  Routes,
+} from "react-router";
 
+import { useConfig } from "./api/config";
 import { AvisosProvider } from "./components/Avisos";
 import { Catalogos } from "./pages/Catalogos";
 import { EditorReporte } from "./pages/EditorReporte";
@@ -8,7 +16,7 @@ import { Reportes } from "./pages/Reportes";
 
 const queryClient = new QueryClient();
 
-function Layout() {
+function Layout({ almacenar }: { almacenar: boolean }) {
   return (
     <div className="app-layout">
       <aside className="sidebar">
@@ -31,7 +39,7 @@ function Layout() {
                 strokeLinejoin="round"
               />
             </svg>
-            Reportes
+            {almacenar ? "Reportes" : "Nuevo reporte"}
           </NavLink>
           <NavLink to="/catalogos">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -54,18 +62,53 @@ function Layout() {
   );
 }
 
+function EditorSemanaTemporal() {
+  return (
+    <section>
+      <h1>Editor de semana</h1>
+      <p>Este reporte no se guarda.</p>
+    </section>
+  );
+}
+
+export function RutasAplicacion() {
+  const config = useConfig();
+  if (config.isPending) return <p className="empty">Cargando…</p>;
+  if (config.isError)
+    return (
+      <section>
+        <p role="alert" className="alert alert-error">
+          {config.error.message}
+        </p>
+        <button type="button" onClick={() => void config.refetch()}>
+          Reintentar
+        </button>
+      </section>
+    );
+  const almacenar = config.data.almacenar;
+  return (
+    <Routes>
+      <Route element={<Layout almacenar={almacenar} />}>
+        <Route
+          index
+          element={almacenar ? <Reportes /> : <EditorSemanaTemporal />}
+        />
+        <Route
+          path="reportes/:id"
+          element={almacenar ? <EditorReporte /> : <Navigate to="/" replace />}
+        />
+        <Route path="catalogos" element={<Catalogos />} />
+      </Route>
+    </Routes>
+  );
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AvisosProvider>
         <BrowserRouter>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route index element={<Reportes />} />
-              <Route path="reportes/:id" element={<EditorReporte />} />
-              <Route path="catalogos" element={<Catalogos />} />
-            </Route>
-          </Routes>
+          <RutasAplicacion />
         </BrowserRouter>
       </AvisosProvider>
     </QueryClientProvider>

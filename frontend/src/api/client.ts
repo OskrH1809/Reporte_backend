@@ -22,6 +22,15 @@ async function readError(response: Response): Promise<ErrorResponse> {
   }
 }
 
+async function apiError(response: Response): Promise<ApiError> {
+  const body = await readError(response);
+  return new ApiError(
+    typeof body.detail === "string" ? body.detail : "Error inesperado",
+    response.status,
+    typeof body.code === "string" ? body.code : "unexpected_error",
+  );
+}
+
 export async function apiRequest<T>(
   path: string,
   init?: RequestInit,
@@ -31,13 +40,22 @@ export async function apiRequest<T>(
     headers.set("Content-Type", "application/json");
   const response = await fetch(`/api${path}`, { ...init, headers });
   if (!response.ok) {
-    const body = await readError(response);
-    throw new ApiError(
-      typeof body.detail === "string" ? body.detail : "Error inesperado",
-      response.status,
-      typeof body.code === "string" ? body.code : "unexpected_error",
-    );
+    throw await apiError(response);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+export async function apiDescarga(
+  path: string,
+  body: FormData,
+): Promise<{ blob: Blob; nombre?: string }> {
+  const response = await fetch(`/api${path}`, { method: "POST", body });
+  if (!response.ok) throw await apiError(response);
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const coincidencia = /filename="?([^";]+)"?/i.exec(disposition);
+  return {
+    blob: await response.blob(),
+    nombre: coincidencia?.[1],
+  };
 }
