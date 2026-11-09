@@ -1,7 +1,7 @@
 ---
 id: REPORTE-20261108-modo-sin-almacenar
 plan: PLAN-20261108-modo-sin-almacenar
-iteracion: 0
+iteracion: 1
 rama: agente/modo-sin-almacenar
 ---
 
@@ -9,7 +9,7 @@ rama: agente/modo-sin-almacenar
 
 ## Resumen
 
-Las tareas 1–4 quedaron completas y comprometidas: configuración por modo, modelo único en memoria, exportación sin persistencia y frontend condicionado por `/api/config`. La Tarea 5 agotó tres intentos de verificación; sus correcciones finales quedaron sin verificar y sin commit. Las tareas 6–7 no se iniciaron porque la Tarea 6 depende del formulario compartido.
+Las tareas 1–5 quedaron completas y comprometidas. La Iteración 1 verificó y cerró el formulario compartido. La Tarea 6 agotó sus tres intentos: 61 pruebas, lint y formato pasan, pero el build detectó un problema de tipado en una prueba; la corrección quedó aplicada sin verificar y sin commit. La Tarea 7 no se inició para no documentar funcionalidad incompleta.
 
 ## Tareas
 
@@ -19,8 +19,8 @@ Las tareas 1–4 quedaron completas y comprometidas: configuración por modo, mo
 | 2 | Modelo único en memoria para Excel | ✅ | `8be3dfe` | Sin `object_session`; foto ausente se omite. |
 | 3 | `POST /api/exportar/{tipo}` sin estado | ✅ | `536b736` | Formato, mejorado y PDF sin escrituras en BD o disco. |
 | 4 | Frontend según `/api/config` | ✅ | `d9b7017` | Rutas, navegación y cliente de descargas probados. |
-| 5 | Formulario compartido del día | ⚠️ parcial | — | Correcciones posteriores al tercer intento pendientes de verificación; cambios sin commit. |
-| 6 | Editor semanal en memoria | ❌ | — | No iniciada; depende de la Tarea 5. |
+| 5 | Formulario compartido del día | ✅ | `64d7775` | 54 pruebas y build en verde; `EditorReporte.tsx` quedó en 346 líneas. |
+| 6 | Editor semanal en memoria | ⚠️ parcial | — | Implementación y siete pruebas nuevas sin commit; corrección final pendiente de verificación. |
 | 7 | Documentación | ❌ | — | No iniciada para no documentar funcionalidad incompleta. |
 
 ## Verificación
@@ -60,7 +60,25 @@ src/components/EditorComponents.test.tsx: Object literal may only specify known 
 src/components/FormularioDia.tsx: Type 'FotoVista[]' is not assignable to type 'Foto[]'.
 ```
 
-Tras esa salida se ajustaron los tipos de fotos/verificaciones y se extrajo el selector de firmas para volver a dejar `EditorReporte.tsx` por debajo de 350 líneas, pero no se ejecutó un cuarto intento porque `ejecutar-plan` fija un máximo de tres. No se ejecutó la verificación final completa ni los escaneos finales de seguridad.
+```text
+$ Iteración 1, Tarea 5: npm run test && lint && format:check && build
+Test Files  10 passed (10)
+Tests       54 passed (54)
+All matched files use Prettier code style!
+✓ 155 modules transformed.
+✓ built in 138ms
+$ wc -l frontend/src/pages/EditorReporte.tsx
+346 frontend/src/pages/EditorReporte.tsx
+
+$ Iteración 1, Tarea 6, tercer intento
+Test Files  13 passed (13)
+Tests       61 passed (61)
+All matched files use Prettier code style!
+src/components/BotonDescarga.test.tsx(51,35): error TS2339:
+Property 'download' does not exist on type '{}'.
+```
+
+La prueba se corrigió para capturar `this.download` en la implementación simulada del clic, pero no se ejecutó un cuarto intento porque la Iteración 1 fija tres. No se ejecutó la verificación final completa ni los escaneos finales de seguridad.
 
 Todos los comandos backend usaron el código montado en un contenedor aislado sin montar `data/`. No se abrió `.env`, no se inspeccionó ni modificó `data/` o `data.antes-actividades/`, y no se tocó el worktree paralelo.
 
@@ -82,19 +100,22 @@ Escaneos finales: gitleaks no ejecutado · bandit no ejecutado · pip-audit no e
 - Tarea 2 siguió `services/calculos.py` para el servicio puro y conservó las firmas/assercciones de los exportadores.
 - Tarea 3 siguió `schemas/reportes.py`, `subir_foto` y `_respuesta`.
 - Tarea 4 siguió `api/catalogos.ts`, React Query y el montaje de `Reportes.test.tsx`.
-- Tarea 5 siguió los componentes controlados actuales, pero no alcanzó verificación concluyente dentro del límite de intentos.
+- Tarea 5 siguió los componentes controlados actuales y cerró en el segundo intento nuevo de la Iteración 1.
+- Tarea 6 siguió `actividades.ts`/`calculos.ts`, el encabezado del editor guardado y `useAvisos`/`Confirmar`; no alcanzó verificación concluyente dentro del límite de intentos.
 
 ## Desviaciones del plan
 
 - El commit previo solicitado (`8e0c9fd`) incluyó los planes nuevos y la revisión pendientes de `.agentes/`; la fila de métricas no tenía cambios pendientes.
-- En la Tarea 4 se usó una vista temporal mínima dentro de `App.tsx` porque el `EditorSemana` real pertenece a la Tarea 6; debía sustituirse al completar esa tarea.
-- Los cambios pendientes de la Tarea 5 ajustan también `frontend/src/actividades.ts` y `frontend/src/verificaciones.ts`. Son cambios de tipos imprescindibles para que `FotoVista` sea reutilizable, pero están fuera de la lista explícita de archivos y no se comprometieron.
+- La Tarea 5 ajustó también `frontend/src/actividades.ts` y `frontend/src/verificaciones.ts`, archivos autorizados explícitamente por la Iteración 1 para cerrar los tipos de `FotoVista`.
+- La Tarea 6 modifica `frontend/src/App.tsx` y `frontend/src/App.test.tsx` para sustituir la vista temporal creada en la Tarea 4 por el editor real. Es la conexión imprescindible prevista por el propio plan, aunque esos dos archivos no se repiten en la lista de la Tarea 6.
 
 ## Bloqueos
 
-- La Tarea 5 agotó tres intentos. El tercero dejó las pruebas en verde pero falló el build por dos incompatibilidades de tipos. Las correcciones están aplicadas, aunque el skill impide un cuarto intento para demostrar que pasan. La Tarea 6 depende de `FormularioDia`, por lo que continuar habría encadenado trabajo sobre una tarea no verificada.
-- Para reanudar: autorizar una nueva iteración o una continuación que permita verificar las correcciones pendientes de la Tarea 5; si pasan, se puede crear su commit y seguir con las tareas 6–7.
+- La Tarea 6 agotó los tres intentos autorizados. El tercero dejó 61 pruebas, lint y formato en verde, pero el build falló por el tipo inferido de `click.mock.instances[0]` en `BotonDescarga.test.tsx`. La corrección está aplicada, aunque no puede declararse aprobada sin un nuevo intento.
+- Para reanudar: autorizar una nueva iteración que permita verificar la corrección pendiente de la Tarea 6; si pasa, se puede crear su commit, ejecutar la Tarea 7 y hacer la verificación final.
 
 ## Métricas
 
-`tareas_completadas=4` · `pruebas_ok=0` · `pruebas_nuevas=15` · `lineas_cambiadas=1078` · `bloqueos=1` · `minutos_ejecucion=27`
+Acumulado: `tareas_completadas=5` · `pruebas_ok=0` · `pruebas_nuevas=16` · `lineas_cambiadas=2001` · `bloqueos=1` · `minutos_ejecucion=33`
+
+Iteración 1: `tareas_completadas=1` · `pruebas_ok=0` · `pruebas_nuevas=1` · `lineas_cambiadas=813` · `bloqueos=1` · `minutos_ejecucion=6`
