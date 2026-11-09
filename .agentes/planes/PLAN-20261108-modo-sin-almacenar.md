@@ -261,3 +261,12 @@ Prueba manual en los dos modos con `make up`: primero `ALMACENAR=true` (todo com
 - Supuesto: `ALMACENAR` es **true por defecto**, para que tu instalación local siga como hoy.
 - Supuesto: el modo se decide al arrancar el backend (cambiarlo requiere reiniciar), y el frontend se adapta solo leyendo `/api/config`, con una sola versión compilada.
 - Sin preguntas abiertas.
+
+## Iteración 1
+Origen: el bloqueo del reporte (la tarea 5 agotó 3 intentos con las correcciones aplicadas pero sin verificar). Oscar autoriza continuar.
+
+- **Tarea 5 (cerrar):** verifica las correcciones que ya están en el árbol de trabajo (`FormularioDia.tsx`, `SelectorFotos.tsx`, `EditorReporte.tsx`, `actividades.ts`, `verificaciones.ts` y `EditorComponents.test.tsx`) con `npm --prefix frontend run test`, `lint`, `format:check` y `build`. Si pasan, haz el commit de la tarea 5. Tienes **3 intentos nuevos** para esta tarea. El criterio de aceptación no cambia: el comportamiento del modo guardado es idéntico y `EditorReporte.tsx` queda por debajo de 350 líneas.
+- **Tareas 6 y 7:** ejecútalas como dice el plan, con 3 intentos cada una.
+- **Git:** solo `git add` y `git commit` locales en `agente/modo-sin-almacenar`. Prohibido `push`, `pull`, `fetch`, `merge` a otras ramas, `gh` o cualquier acción contra GitHub.
+- No toques `data/`, `data.antes-actividades/` ni el worktree `../Proyecto_Tania-claude`.
+- Actualiza el mismo reporte (`REPORTE-20261108-modo-sin-almacenar.md`, con `iteracion: 1`).
