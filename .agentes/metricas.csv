@@ -2,4 +2,4 @@ fecha,plan,stack,tareas_plan,tareas_completadas,primera_pasada,iteraciones,prueb
 2026-11-05,PLAN-20261105-reportes-servicios,FastAPI+React,7,7,no,1,1,38,0,9111,0,0,0,1,20,80,
 2026-11-08,PLAN-20261108-diseno-ui,React,5,5,no,0,1,25,0,3186,0,0,0,0,15,60,
 2026-11-08,PLAN-20261108-actividades-dinamicas,FastAPI+React,5,5,no,1,1,28,0,1169,0,0,0,1,40,42,
-2026-11-08,PLAN-20261108-modo-sin-almacenar,FastAPI+React,,5,,,0,16,,2001,1,,,,,33,
+2026-11-08,PLAN-20261108-modo-sin-almacenar,FastAPI+React,,7,,,1,23,,2712,0,,,,,41,
