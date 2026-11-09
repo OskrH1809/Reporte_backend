@@ -8,6 +8,8 @@ services:
       JORNADA_SEMANA: ${JORNADA_SEMANA:-8}
       JORNADA_SABADO: ${JORNADA_SABADO:-5}
       MAX_FOTO_MB: ${MAX_FOTO_MB:-15}
+      ALMACENAR: ${ALMACENAR:-true}
+      MAX_EXPORTACION_MB: ${MAX_EXPORTACION_MB:-60}
     volumes:
       - ./data:/data
   web:

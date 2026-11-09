@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     jornada_semana: float = Field(8, gt=0, le=24)
     jornada_sabado: float = Field(5, gt=0, le=24)
     max_foto_mb: int = Field(15, ge=1, le=20)
+    max_exportacion_mb: int = Field(60, ge=5, le=200)
+    almacenar: bool = True
 
     @field_validator("cors_origins", mode="before")
     @classmethod

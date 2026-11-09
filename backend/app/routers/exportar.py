@@ -11,7 +11,8 @@ from app.services.excel_mejorado import generar_mejorado
 from app.services.pdf import generar_pdf
 
 DatabaseSession = Annotated[Session, Depends(get_db)]
-router = APIRouter(prefix="/api/reportes", tags=["exportacion"])
+router_guardado = APIRouter(prefix="/api/reportes", tags=["exportacion"])
+router_memoria = APIRouter(prefix="/api/exportar", tags=["exportacion"])
 
 
 def _respuesta(contenido: bytes, nombre: str, media_type: str) -> Response:
@@ -22,7 +23,7 @@ def _respuesta(contenido: bytes, nombre: str, media_type: str) -> Response:
     )
 
 
-@router.get("/{reporte_id}/exportar/{tipo}", response_model=None)
+@router_guardado.get("/{reporte_id}/exportar/{tipo}", response_model=None)
 def exportar(
     reporte_id: int,
     tipo: Literal["formato", "mejorado", "pdf"],
