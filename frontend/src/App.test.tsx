@@ -35,7 +35,11 @@ it("muestra la lista cuando almacenar está activo", async () => {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(
-      respuesta({ almacenar: true, max_fotos_por_espacio: 4 }),
+      respuesta({
+        almacenar: true,
+        autenticacion: false,
+        max_fotos_por_espacio: 4,
+      }),
     )
     .mockResolvedValueOnce(respuesta([]));
   vi.stubGlobal("fetch", fetchMock);
@@ -52,7 +56,11 @@ it("muestra el editor cuando almacenar está desactivado", async () => {
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(
-      respuesta({ almacenar: false, max_fotos_por_espacio: 4 }),
+      respuesta({
+        almacenar: false,
+        autenticacion: false,
+        max_fotos_por_espacio: 4,
+      }),
     )
     .mockResolvedValue(respuesta([]));
   vi.stubGlobal("fetch", fetchMock);
@@ -65,4 +73,24 @@ it("muestra el editor cuando almacenar está desactivado", async () => {
   expect(
     screen.getByRole("link", { name: /Nuevo reporte/ }),
   ).toBeInTheDocument();
+});
+
+it("pide iniciar sesión cuando la autenticación está activa", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      respuesta({
+        almacenar: false,
+        autenticacion: true,
+        max_fotos_por_espacio: 4,
+      }),
+    ),
+  );
+
+  pagina();
+
+  expect(
+    await screen.findByRole("button", { name: "Entrar" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /Catálogos/ })).toBeNull();
 });

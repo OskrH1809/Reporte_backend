@@ -4,6 +4,7 @@ import { apiRequest } from "./client";
 
 export interface Configuracion {
   almacenar: boolean;
+  autenticacion: boolean;
   max_fotos_por_espacio: number;
 }
 

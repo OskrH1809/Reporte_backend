@@ -822,3 +822,24 @@ th {
     padding: 1rem 1rem 2rem;
   }
 }
+.login {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1rem;
+}
+.login-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  min-height: 0;
+  background: rgb(15 23 20 / 55%);
+}
+.login-card {
+  width: min(100%, 24rem);
+}
+.sesion-pie {
+  display: grid;
+  gap: 0.4rem;
+  overflow-wrap: anywhere;
+}
