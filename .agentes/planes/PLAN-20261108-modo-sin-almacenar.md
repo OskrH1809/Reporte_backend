@@ -1,6 +1,6 @@
 ---
 id: PLAN-20261108-modo-sin-almacenar
-estado: aprobado        # borrador | aprobado | en_ejecucion | cerrado
+estado: cerrado         # borrador | aprobado | en_ejecucion | cerrado
 rama: agente/modo-sin-almacenar
 rama_base: agente/actividades-dinamicas   # o main si Oscar ya fusionó
 stack: fastapi
