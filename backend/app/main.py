@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.errors import register_error_handlers
-from app.routers import catalogos, config, exportar, health, reportes
+from app.routers import catalogos, config, exportar, health, importar, reportes
 from app.services.semillas import cargar_semillas
 
 
@@ -33,6 +33,7 @@ def crear_app(settings: Settings) -> FastAPI:
     aplicacion.include_router(catalogos.router)
     aplicacion.include_router(config.router)
     aplicacion.include_router(exportar.router_memoria)
+    aplicacion.include_router(importar.router)
     if settings.almacenar:
         aplicacion.include_router(reportes.router)
         aplicacion.include_router(exportar.router_guardado)
