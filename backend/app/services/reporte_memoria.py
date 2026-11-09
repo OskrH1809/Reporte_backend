@@ -1,12 +1,17 @@
+from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Colaborador, Herramienta, Material, Reporte
+from app.errors import InvalidInputError, NotFoundError
+from app.models import Colaborador, Firmante, Herramienta, Material, Reporte
+from app.models.reportes import TEXTO_FOTOS_PREDETERMINADO
+from app.schemas.exportar import ReporteExportar
 from app.services import fotos
+from app.services.calculos import jornada_dia, recalcular_horas
 
 
 @dataclass
@@ -149,3 +154,100 @@ def catalogos_exportacion(
         list(session.scalars(consulta_herramientas)),
         list(session.scalars(consulta_materiales)),
     )
+
+
+def armar_reporte(
+    datos: ReporteExportar, contenidos: list[bytes], session: Session
+) -> ReporteMemoria:
+    elaborado_por = _firmante(session, datos.elaborado_por_id)
+    revisado_por = _firmante(session, datos.revisado_por_id)
+    lunes = date.fromisocalendar(datos.anio, datos.semana, 1)
+    dias = []
+    for entrada in sorted(datos.dias, key=lambda item: item.dia_semana):
+        actividades = []
+        for actividad in sorted(entrada.actividades, key=lambda item: item.letra):
+            asignaciones = []
+            for asignacion in actividad.asignaciones:
+                colaborador = session.get(Colaborador, asignacion.colaborador_id)
+                if colaborador is None:
+                    raise NotFoundError("Colaborador no encontrado")
+                asignaciones.append(
+                    AsignacionMemoria(
+                        colaborador_id=colaborador.id,
+                        colaborador=_nombre(colaborador),
+                        horas=asignacion.horas or 0,
+                        horas_manual=asignacion.horas_manual,
+                    )
+                )
+            actividades.append(
+                ActividadMemoria(
+                    letra=actividad.letra,
+                    descripcion=actividad.descripcion,
+                    asignaciones=asignaciones,
+                )
+            )
+        herramientas = []
+        for cantidad in entrada.herramientas:
+            herramienta = session.get(Herramienta, cantidad.herramienta_id)
+            if herramienta is None:
+                raise NotFoundError("Herramienta no encontrada")
+            herramientas.append(
+                CantidadMemoria(
+                    cantidad=cantidad.cantidad,
+                    herramienta_id=herramienta.id,
+                    herramienta=_nombre(herramienta),
+                )
+            )
+        materiales = []
+        for cantidad in entrada.materiales:
+            material = session.get(Material, cantidad.material_id)
+            if material is None:
+                raise NotFoundError("Material no encontrado")
+            materiales.append(
+                CantidadMemoria(
+                    cantidad=cantidad.cantidad,
+                    material_id=material.id,
+                    material=_nombre(material, con_unidad=True),
+                )
+            )
+        ordenes: dict[str, int] = defaultdict(int)
+        fotos_memoria = []
+        for foto in entrada.fotos:
+            if foto.indice >= len(contenidos):
+                raise InvalidInputError("Foto no encontrada en la petición")
+            ordenes[foto.espacio] += 1
+            fotos_memoria.append(
+                FotoMemoria(
+                    espacio=foto.espacio,
+                    orden=ordenes[foto.espacio],
+                    contenido=contenidos[foto.indice],
+                )
+            )
+        dia = DiaMemoria(
+            dia_semana=entrada.dia_semana,
+            fecha=lunes + timedelta(days=entrada.dia_semana),
+            observacion=entrada.observacion,
+            texto_fotos=entrada.texto_fotos or TEXTO_FOTOS_PREDETERMINADO,
+            actividades=actividades,
+            herramientas=herramientas,
+            materiales=materiales,
+            fotos=fotos_memoria,
+        )
+        recalcular_horas(dia, jornada_dia(dia))
+        dias.append(dia)
+    return ReporteMemoria(
+        anio=datos.anio,
+        semana=datos.semana,
+        elaborado_por=elaborado_por,
+        revisado_por=revisado_por,
+        dias=dias,
+    )
+
+
+def _firmante(session: Session, firmante_id: int | None) -> NombreMemoria | None:
+    if firmante_id is None:
+        return None
+    firmante = session.get(Firmante, firmante_id)
+    if firmante is None:
+        raise NotFoundError("Firmante no encontrado")
+    return _nombre(firmante)

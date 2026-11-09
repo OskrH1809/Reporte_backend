@@ -11,7 +11,7 @@ FORMATOS = {"JPEG", "PNG", "WEBP"}
 MAX_LADO = 1600
 
 
-def procesar_foto(contenido: bytes, max_mb: int) -> str:
+def normalizar_foto(contenido: bytes, max_mb: int) -> bytes:
     if len(contenido) > max_mb * 1024 * 1024:
         raise FileTooLargeError(f"La foto supera el máximo de {max_mb} MB")
     try:
@@ -29,12 +29,19 @@ def procesar_foto(contenido: bytes, max_mb: int) -> str:
                 else:
                     fondo.paste(imagen)
                 imagen = fondo
-            FOTOS_DIR.mkdir(parents=True, exist_ok=True)
-            nombre = f"{uuid4()}.jpg"
-            imagen.save(FOTOS_DIR / nombre, "JPEG", quality=85, optimize=True)
-            return nombre
+            salida = BytesIO()
+            imagen.save(salida, "JPEG", quality=85, optimize=True)
+            return salida.getvalue()
     except (UnidentifiedImageError, OSError, ValueError) as error:
         raise InvalidFileError("El archivo no es una imagen válida") from error
+
+
+def procesar_foto(contenido: bytes, max_mb: int) -> str:
+    normalizada = normalizar_foto(contenido, max_mb)
+    FOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    nombre = f"{uuid4()}.jpg"
+    (FOTOS_DIR / nombre).write_bytes(normalizada)
+    return nombre
 
 
 def eliminar_archivo(nombre: str) -> None:
