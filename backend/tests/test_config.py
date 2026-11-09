@@ -28,7 +28,7 @@ def test_modo_almacenar_expone_config_y_reportes(session: Session) -> None:
         reportes = client.get("/api/reportes")
 
     assert config.status_code == 200
-    assert config.json() == {"almacenar": True, "max_fotos_por_espacio": 4}
+    assert config.json() == {"almacenar": True, "autenticacion": False, "max_fotos_por_espacio": 4}
     assert reportes.status_code == 200
 
 
@@ -41,7 +41,7 @@ def test_modo_memoria_oculta_reportes_y_conserva_catalogos(session: Session) -> 
         colaboradores = client.get("/api/catalogos/colaboradores")
 
     assert config.status_code == 200
-    assert config.json() == {"almacenar": False, "max_fotos_por_espacio": 4}
+    assert config.json() == {"almacenar": False, "autenticacion": False, "max_fotos_por_espacio": 4}
     assert reportes.status_code == 404
     assert exportacion.status_code == 404
     assert colaboradores.status_code == 200

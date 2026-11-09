@@ -9,6 +9,7 @@ router = APIRouter(prefix="/api", tags=["configuracion"])
 
 class ConfigRead(BaseModel):
     almacenar: bool
+    autenticacion: bool
     max_fotos_por_espacio: int
 
 
@@ -17,5 +18,6 @@ def ver_config(request: Request) -> ConfigRead:
     settings: Settings = request.app.state.settings
     return ConfigRead(
         almacenar=settings.almacenar,
+        autenticacion=settings.autenticacion,
         max_fotos_por_espacio=LIMITES_FOTOS["A"],
     )

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -6,7 +7,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from alembic import command
-from app.config import get_settings
+from app.config import Settings, get_settings
 
 TABLAS = {
     "actividades",
@@ -20,19 +21,19 @@ TABLAS = {
     "herramientas",
     "materiales",
     "reportes",
+    "usuarios",
 }
 
 
-def test_migracion_ida_y_vuelta_sqlite(tmp_path, monkeypatch) -> None:
+def _ida_y_vuelta(url: str, monkeypatch: pytest.MonkeyPatch) -> None:
     backend = Path(__file__).resolve().parents[1]
-    base = tmp_path / "migraciones.db"
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{base}")
+    monkeypatch.setenv("DATABASE_URL", url)
     get_settings.cache_clear()
     configuracion = Config(backend / "alembic.ini")
     configuracion.set_main_option("script_location", str(backend / "alembic"))
+    motor = create_engine(get_settings().database_url)
     try:
         command.upgrade(configuracion, "head")
-        motor = create_engine(f"sqlite:///{base}")
         assert set(inspect(motor).get_table_names()) >= TABLAS
         with motor.begin() as conexion:
             conexion.execute(text("INSERT INTO reportes (id, anio, semana) VALUES (1, 2026, 45)"))
@@ -56,6 +57,16 @@ def test_migracion_ida_y_vuelta_sqlite(tmp_path, monkeypatch) -> None:
                     "VALUES (2, 1, 'K', 'Actividad inválida')"
                 )
             )
+        if motor.dialect.name == "postgresql":
+            with motor.connect() as conexion:
+                sin_rls = conexion.scalars(
+                    text(
+                        "SELECT relname FROM pg_class "
+                        "WHERE relname = ANY(:tablas) AND relkind = 'r' AND NOT relrowsecurity"
+                    ),
+                    {"tablas": [*sorted(TABLAS), "alembic_version"]},
+                ).all()
+            assert sin_rls == []
 
         command.downgrade(configuracion, "0001")
         with motor.connect() as conexion:
@@ -72,6 +83,21 @@ def test_migracion_ida_y_vuelta_sqlite(tmp_path, monkeypatch) -> None:
         assert not TABLAS & set(inspect(motor).get_table_names())
         command.upgrade(configuracion, "head")
         assert set(inspect(motor).get_table_names()) >= TABLAS
-        motor.dispose()
+        command.downgrade(configuracion, "base")
     finally:
+        motor.dispose()
         get_settings.cache_clear()
+
+
+def test_migracion_ida_y_vuelta_sqlite(tmp_path, monkeypatch) -> None:
+    _ida_y_vuelta(f"sqlite:///{tmp_path / 'migraciones.db'}", monkeypatch)
+
+
+@pytest.mark.skipif(not os.environ.get("TEST_POSTGRES_URL"), reason="Sin TEST_POSTGRES_URL")
+def test_migracion_ida_y_vuelta_postgres(monkeypatch) -> None:
+    url = os.environ["TEST_POSTGRES_URL"]
+    # El Postgres temporal de prueba no tiene TLS.
+    if "sslmode" not in url:
+        url += ("&" if "?" in url else "?") + "sslmode=disable"
+    assert Settings(database_url=url).database_url.startswith("postgresql+psycopg://")
+    _ida_y_vuelta(url, monkeypatch)

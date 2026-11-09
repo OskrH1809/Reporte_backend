@@ -16,13 +16,21 @@ depends_on: str | Sequence[str] | None = None
 LETRAS_A_J = "'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'"
 
 
+def _cambiar_restriccion(tabla: str, nombre: str, condicion: str) -> None:
+    if op.get_bind().dialect.name == "sqlite":
+        # SQLite no altera restricciones: hay que recrear la tabla.
+        with op.batch_alter_table(tabla, recreate="always") as batch_op:
+            batch_op.drop_constraint(nombre, type_="check")
+            batch_op.create_check_constraint(nombre, condicion)
+    else:
+        # Recrear la tabla en Postgres falla por las llaves foráneas que la referencian.
+        op.drop_constraint(nombre, tabla, type_="check")
+        op.create_check_constraint(nombre, tabla, condicion)
+
+
 def upgrade() -> None:
-    with op.batch_alter_table("actividades", recreate="always") as batch_op:
-        batch_op.drop_constraint("letra_valida", type_="check")
-        batch_op.create_check_constraint("letra_valida", f"letra IN ({LETRAS_A_J})")
-    with op.batch_alter_table("fotos", recreate="always") as batch_op:
-        batch_op.drop_constraint("espacio_valido", type_="check")
-        batch_op.create_check_constraint("espacio_valido", f"espacio IN ({LETRAS_A_J}, 'AD')")
+    _cambiar_restriccion("actividades", "letra_valida", f"letra IN ({LETRAS_A_J})")
+    _cambiar_restriccion("fotos", "espacio_valido", f"espacio IN ({LETRAS_A_J}, 'AD')")
 
 
 def downgrade() -> None:
@@ -33,9 +41,5 @@ def downgrade() -> None:
     )
     op.execute("DELETE FROM actividades WHERE letra NOT IN ('A', 'B', 'C')")
     op.execute("DELETE FROM fotos WHERE espacio NOT IN ('A', 'B', 'C', 'AD')")
-    with op.batch_alter_table("actividades", recreate="always") as batch_op:
-        batch_op.drop_constraint("letra_valida", type_="check")
-        batch_op.create_check_constraint("letra_valida", "letra IN ('A', 'B', 'C')")
-    with op.batch_alter_table("fotos", recreate="always") as batch_op:
-        batch_op.drop_constraint("espacio_valido", type_="check")
-        batch_op.create_check_constraint("espacio_valido", "espacio IN ('A', 'B', 'C', 'AD')")
+    _cambiar_restriccion("actividades", "letra_valida", "letra IN ('A', 'B', 'C')")
+    _cambiar_restriccion("fotos", "espacio_valido", "espacio IN ('A', 'B', 'C', 'AD')")
