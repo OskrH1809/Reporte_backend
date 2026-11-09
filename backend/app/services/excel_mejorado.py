@@ -16,6 +16,12 @@ from app.models.reportes import LETRAS_ACTIVIDAD
 from app.services.calculos import jornada_dia, totales_dia
 from app.services.excel_formato import EMU_POR_PIXEL, PLANTILLAS_DIR, texto_seguro
 from app.services.reporte_memoria import DiaMemoria, ReporteMemoria
+from app.services.respaldo_excel import (
+    MapaCeldas,
+    RespaldoSemana,
+    escribir_respaldo,
+    registrar_celda,
+)
 
 VERDE_OSCURO = "176B2C"
 VERDE_CLARO = "EAF7ED"
@@ -403,7 +409,11 @@ def _seccion_fotos(hoja: Worksheet, dia: DiaMemoria, fila: int) -> int:
 
 
 def _mapa_observacion_firmas(
-    hoja: Worksheet, reporte: ReporteMemoria, dia: DiaMemoria, fila: int
+    hoja: Worksheet,
+    reporte: ReporteMemoria,
+    dia: DiaMemoria,
+    fila: int,
+    mapa_celdas: MapaCeldas,
 ) -> int:
     hoja.row_breaks.append(Break(id=fila - 1))
     mapa = ExcelImage(PLANTILLAS_DIR / "mapa.png")
@@ -411,12 +421,21 @@ def _mapa_observacion_firmas(
     hoja.row_dimensions[fila].height = (alto_mapa + MARGEN_MAPA_PX) * 72 / 96
     _anclar_imagen(hoja, PLANTILLAS_DIR / "mapa.png", fila, 0, 420, alto_mapa, 850)
     fila += 1
+    fila_observacion = fila
     fila = _tabla(
         hoja,
         fila,
         [("Observación", 1, 12, "left")],
         [[dia.observacion]],
     )
+    registrar_celda(
+        mapa_celdas,
+        f"d{dia.dia_semana}.observacion",
+        hoja.title,
+        hoja.cell(fila_observacion + 1, 1).coordinate,
+        dia.observacion,
+    )
+    fila_firmas = fila
     _tabla(
         hoja,
         fila,
@@ -428,13 +447,36 @@ def _mapa_observacion_firmas(
             ]
         ],
     )
+    registrar_celda(
+        mapa_celdas,
+        "firma.elaborado",
+        hoja.title,
+        hoja.cell(fila_firmas + 1, 1).coordinate,
+        reporte.elaborado_por.nombre if reporte.elaborado_por else "",
+        reemplazar=False,
+    )
+    registrar_celda(
+        mapa_celdas,
+        "firma.revisado",
+        hoja.title,
+        hoja.cell(fila_firmas + 1, 7).coordinate,
+        reporte.revisado_por.nombre if reporte.revisado_por else "",
+        reemplazar=False,
+    )
     return fila + 2
 
 
-def _hoja_dia(libro: Workbook, reporte: ReporteMemoria, dia: DiaMemoria, nombre: str) -> None:
+def _hoja_dia(
+    libro: Workbook,
+    reporte: ReporteMemoria,
+    dia: DiaMemoria,
+    nombre: str,
+    mapa_celdas: MapaCeldas,
+) -> None:
     hoja = libro.create_sheet(nombre)
     _configurar_hoja(hoja)
     fila = _encabezado(hoja, nombre, f"{dia.fecha:%d/%m/%Y}")
+    fila_actividades = fila
     fila = _tabla(
         hoja,
         fila,
@@ -454,6 +496,20 @@ def _hoja_dia(libro: Workbook, reporte: ReporteMemoria, dia: DiaMemoria, nombre:
             for actividad in dia.actividades
         ],
     )
+    for indice, actividad in enumerate(dia.actividades, start=1):
+        registrar_celda(
+            mapa_celdas,
+            f"d{dia.dia_semana}.act.{actividad.letra}.descripcion",
+            hoja.title,
+            hoja.cell(fila_actividades + indice, 2).coordinate,
+            actividad.descripcion,
+        )
+    asignaciones = [
+        (actividad, asignacion)
+        for actividad in dia.actividades
+        for asignacion in actividad.asignaciones
+    ]
+    fila_colaboradores = fila
     fila = _tabla(
         hoja,
         fila,
@@ -468,12 +524,41 @@ def _hoja_dia(libro: Workbook, reporte: ReporteMemoria, dia: DiaMemoria, nombre:
             for asignacion in actividad.asignaciones
         ],
     )
+    for indice, (actividad, asignacion) in enumerate(asignaciones, start=1):
+        registrar_celda(
+            mapa_celdas,
+            f"d{dia.dia_semana}.colab.{asignacion.colaborador_id}.nombre",
+            hoja.title,
+            hoja.cell(fila_colaboradores + indice, 1).coordinate,
+            asignacion.colaborador.nombre,
+            reemplazar=False,
+        )
+        registrar_celda(
+            mapa_celdas,
+            f"d{dia.dia_semana}.colab.{asignacion.colaborador_id}.letras",
+            hoja.title,
+            hoja.cell(fila_colaboradores + indice, 7).coordinate,
+            actividad.letra,
+            reemplazar=False,
+        )
+    herramientas_visibles = [item for item in dia.herramientas if item.cantidad]
+    fila_herramientas = fila
     fila = _tabla(
         hoja,
         fila,
         [("Herramienta", 1, 8, "left"), ("Cantidad", 9, 12, "right")],
         [[item.herramienta.nombre, item.cantidad] for item in dia.herramientas if item.cantidad],
     )
+    for indice, item in enumerate(herramientas_visibles, start=1):
+        registrar_celda(
+            mapa_celdas,
+            f"d{dia.dia_semana}.herr.{item.herramienta_id}.cantidad",
+            hoja.title,
+            hoja.cell(fila_herramientas + indice, 9).coordinate,
+            item.cantidad,
+        )
+    materiales_visibles = [item for item in dia.materiales if item.cantidad]
+    fila_materiales = fila
     fila = _tabla(
         hoja,
         fila,
@@ -488,15 +573,31 @@ def _hoja_dia(libro: Workbook, reporte: ReporteMemoria, dia: DiaMemoria, nombre:
             if item.cantidad
         ],
     )
+    for indice, item in enumerate(materiales_visibles, start=1):
+        registrar_celda(
+            mapa_celdas,
+            f"d{dia.dia_semana}.mat.{item.material_id}.cantidad",
+            hoja.title,
+            hoja.cell(fila_materiales + indice, 10).coordinate,
+            item.cantidad,
+        )
     if dia.texto_fotos:
+        fila_texto_fotos = fila
         fila = _tabla(
             hoja,
             fila,
             [("Descripción de evidencia", 1, 12, "left")],
             [[dia.texto_fotos]],
         )
+        registrar_celda(
+            mapa_celdas,
+            f"d{dia.dia_semana}.texto_fotos",
+            hoja.title,
+            hoja.cell(fila_texto_fotos + 1, 1).coordinate,
+            dia.texto_fotos,
+        )
     fila = _seccion_fotos(hoja, dia, fila)
-    _mapa_observacion_firmas(hoja, reporte, dia, fila)
+    _mapa_observacion_firmas(hoja, reporte, dia, fila, mapa_celdas)
     _finalizar_hoja(hoja)
 
 
@@ -518,12 +619,16 @@ def generar_mejorado(
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
     materiales: list[Material],
+    respaldo: RespaldoSemana | None = None,
 ) -> bytes:
     libro = Workbook()
+    mapa_celdas: MapaCeldas = {}
     _resumen(libro, reporte, colaboradores, herramientas, materiales)
     for dia, nombre in zip(reporte.dias, NOMBRES_DIAS, strict=True):
         if dia.actividades:
-            _hoja_dia(libro, reporte, dia, nombre)
+            _hoja_dia(libro, reporte, dia, nombre, mapa_celdas)
+    if respaldo is not None:
+        escribir_respaldo(libro, respaldo, mapa_celdas)
     salida = BytesIO()
     libro.save(salida)
     return salida.getvalue()

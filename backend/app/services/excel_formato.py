@@ -18,6 +18,12 @@ from app.models import Colaborador, Herramienta
 from app.models.reportes import LETRAS_ACTIVIDAD
 from app.services.calculos import jornada_dia
 from app.services.reporte_memoria import ActividadMemoria, DiaMemoria, ReporteMemoria
+from app.services.respaldo_excel import (
+    MapaCeldas,
+    RespaldoSemana,
+    escribir_respaldo,
+    registrar_celda,
+)
 
 PLANTILLAS_DIR = Path(__file__).resolve().parents[1] / "plantillas"
 NOMBRES_DIAS = ("Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado")
@@ -237,6 +243,7 @@ def _llenar_comunes(
     dia: DiaMemoria,
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
+    mapa: MapaCeldas,
 ) -> None:
     hoja["C6"] = dia.fecha
     hoja["C6"].number_format = "dd/mm/yyyy"
@@ -251,7 +258,22 @@ def _llenar_comunes(
     }
     for fila, colaborador in enumerate(colaboradores[:13], start=10):
         hoja.cell(fila, 2, texto_seguro(colaborador.nombre))
-        hoja.cell(fila, 8, ", ".join(asignaciones[colaborador.id]))
+        letras = ", ".join(asignaciones[colaborador.id])
+        hoja.cell(fila, 8, letras)
+        registrar_celda(
+            mapa,
+            f"d{dia.dia_semana}.colab.{colaborador.id}.nombre",
+            hoja.title,
+            hoja.cell(fila, 2).coordinate,
+            colaborador.nombre,
+        )
+        registrar_celda(
+            mapa,
+            f"d{dia.dia_semana}.colab.{colaborador.id}.letras",
+            hoja.title,
+            hoja.cell(fila, 8).coordinate,
+            letras,
+        )
     actividades = {actividad.letra: actividad for actividad in dia.actividades}
     jornada = jornada_dia(dia)
     for columna, letra in enumerate(("A", "B", "C"), start=13):
@@ -262,8 +284,16 @@ def _llenar_comunes(
         hoja.cell(13, columna, horas / personas if personas else jornada)
     cantidades = {item.herramienta_id: item.cantidad for item in dia.herramientas}
     for fila, herramienta in enumerate(herramientas[:14], start=10):
-        hoja.cell(fila, 17, cantidades.get(herramienta.id, 0))
+        cantidad = cantidades.get(herramienta.id, 0)
+        hoja.cell(fila, 17, cantidad)
         hoja.cell(fila, 18, texto_seguro(herramienta.nombre))
+        registrar_celda(
+            mapa,
+            f"d{dia.dia_semana}.herr.{herramienta.id}.cantidad",
+            hoja.title,
+            hoja.cell(fila, 17).coordinate,
+            cantidad,
+        )
 
 
 def _llenar_dia(
@@ -272,9 +302,10 @@ def _llenar_dia(
     dia: DiaMemoria,
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
+    mapa: MapaCeldas,
 ) -> list[str]:
     con_actividades = bool(dia.actividades)
-    _llenar_comunes(hoja, reporte, dia, colaboradores, herramientas)
+    _llenar_comunes(hoja, reporte, dia, colaboradores, herramientas, mapa)
     actividades = {actividad.letra: actividad for actividad in dia.actividades}
     if con_actividades:
         letras_visibles = [
@@ -290,13 +321,59 @@ def _llenar_dia(
         totales_extras = _insertar_bandas(hoja, actividades, extras, jornada_dia(dia))
         for fila, letra in ((26, "A"), (27, "B"), (29, "C")):
             descripcion = actividades[letra].descripcion if letra in actividades else ""
-            hoja.cell(fila + desplazamiento_bandas, 4, texto_seguro(descripcion))
+            celda = hoja.cell(fila + desplazamiento_bandas, 4, texto_seguro(descripcion))
+            registrar_celda(
+                mapa,
+                f"d{dia.dia_semana}.act.{letra}.descripcion",
+                hoja.title,
+                celda.coordinate,
+                descripcion,
+            )
+        for indice, letra in enumerate(extras):
+            descripcion = actividades[letra].descripcion if letra in actividades else ""
+            registrar_celda(
+                mapa,
+                f"d{dia.dia_semana}.act.{letra}.descripcion",
+                hoja.title,
+                hoja.cell(30 + desplazamiento_bandas + indice, 4).coordinate,
+                descripcion,
+            )
         hoja.cell(30 + desplazamiento, 4, texto_seguro(dia.texto_fotos))
         hoja.cell(52 + desplazamiento, 1, texto_seguro(dia.observacion))
         hoja.cell(
             57 + desplazamiento,
             6,
             texto_seguro(reporte.elaborado_por.nombre) if reporte.elaborado_por else "",
+        )
+        registrar_celda(
+            mapa,
+            f"d{dia.dia_semana}.texto_fotos",
+            hoja.title,
+            hoja.cell(30 + desplazamiento, 4).coordinate,
+            dia.texto_fotos,
+        )
+        registrar_celda(
+            mapa,
+            f"d{dia.dia_semana}.observacion",
+            hoja.title,
+            hoja.cell(52 + desplazamiento, 1).coordinate,
+            dia.observacion,
+        )
+        registrar_celda(
+            mapa,
+            "firma.elaborado",
+            hoja.title,
+            hoja.cell(57 + desplazamiento, 6).coordinate,
+            reporte.elaborado_por.nombre if reporte.elaborado_por else "",
+            reemplazar=False,
+        )
+        registrar_celda(
+            mapa,
+            "firma.revisado",
+            hoja.title,
+            hoja.cell(57 + desplazamiento, 18).coordinate,
+            reporte.revisado_por.nombre if reporte.revisado_por else "",
+            reemplazar=False,
         )
         hoja.cell(
             57 + desplazamiento,
@@ -319,6 +396,23 @@ def _llenar_dia(
         hoja["A48"] = texto_seguro(dia.observacion)
         hoja["F53"] = texto_seguro(reporte.elaborado_por.nombre) if reporte.elaborado_por else ""
         hoja["R53"] = texto_seguro(reporte.revisado_por.nombre) if reporte.revisado_por else ""
+        registrar_celda(mapa, f"d{dia.dia_semana}.observacion", hoja.title, "A48", dia.observacion)
+        registrar_celda(
+            mapa,
+            "firma.elaborado",
+            hoja.title,
+            "F53",
+            reporte.elaborado_por.nombre if reporte.elaborado_por else "",
+            reemplazar=False,
+        )
+        registrar_celda(
+            mapa,
+            "firma.revisado",
+            hoja.title,
+            "R53",
+            reporte.revisado_por.nombre if reporte.revisado_por else "",
+            reemplazar=False,
+        )
         desplazamiento = 0
         totales = ["M19", "N19", "O19"]
     _anclar_logo(hoja)
@@ -330,14 +424,16 @@ def generar_formato(
     reporte: ReporteMemoria,
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
+    respaldo: RespaldoSemana | None = None,
 ) -> bytes:
     libro = load_workbook(PLANTILLAS_DIR / "plantilla_formato.xlsx")
+    mapa: MapaCeldas = {}
     hojas_dias = []
     for dia, nombre in zip(reporte.dias, NOMBRES_DIAS, strict=True):
         base = libro["base_actividades" if dia.actividades else "base_sin_actividades"]
         hoja = libro.copy_worksheet(base)
         hoja.title = nombre
-        totales = _llenar_dia(hoja, reporte, dia, colaboradores, herramientas)
+        totales = _llenar_dia(hoja, reporte, dia, colaboradores, herramientas, mapa)
         hojas_dias.append((hoja, totales))
     libro.remove(libro["base_actividades"])
     libro.remove(libro["base_sin_actividades"])
@@ -349,6 +445,8 @@ def generar_formato(
         datos[f"{letra_columna}8"] = "=+" + "+".join(f"{nombre}!{celda}" for celda in totales)
         datos[f"{letra_columna}9"] = f"=+{nombre}!M17"
     libro._sheets = [*(hoja for hoja, _ in hojas_dias), datos]
+    if respaldo is not None:
+        escribir_respaldo(libro, respaldo, mapa)
     salida = BytesIO()
     libro.save(salida)
     return salida.getvalue()
