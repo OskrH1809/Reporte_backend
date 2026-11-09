@@ -12,6 +12,7 @@ import { useConfig } from "./api/config";
 import { AvisosProvider } from "./components/Avisos";
 import { Catalogos } from "./pages/Catalogos";
 import { EditorReporte } from "./pages/EditorReporte";
+import { EditorSemana } from "./pages/EditorSemana";
 import { Reportes } from "./pages/Reportes";
 
 const queryClient = new QueryClient();
@@ -62,15 +63,6 @@ function Layout({ almacenar }: { almacenar: boolean }) {
   );
 }
 
-function EditorSemanaTemporal() {
-  return (
-    <section>
-      <h1>Editor de semana</h1>
-      <p>Este reporte no se guarda.</p>
-    </section>
-  );
-}
-
 export function RutasAplicacion() {
   const config = useConfig();
   if (config.isPending) return <p className="empty">Cargando…</p>;
@@ -89,10 +81,7 @@ export function RutasAplicacion() {
   return (
     <Routes>
       <Route element={<Layout almacenar={almacenar} />}>
-        <Route
-          index
-          element={almacenar ? <Reportes /> : <EditorSemanaTemporal />}
-        />
+        <Route index element={almacenar ? <Reportes /> : <EditorSemana />} />
         <Route
           path="reportes/:id"
           element={almacenar ? <EditorReporte /> : <Navigate to="/" replace />}

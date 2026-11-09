@@ -49,19 +49,18 @@ it("muestra la lista cuando almacenar está activo", async () => {
 });
 
 it("muestra el editor cuando almacenar está desactivado", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi
-      .fn()
-      .mockResolvedValue(
-        respuesta({ almacenar: false, max_fotos_por_espacio: 4 }),
-      ),
-  );
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      respuesta({ almacenar: false, max_fotos_por_espacio: 4 }),
+    )
+    .mockResolvedValue(respuesta([]));
+  vi.stubGlobal("fetch", fetchMock);
 
   pagina();
 
   expect(
-    await screen.findByRole("heading", { name: "Editor de semana" }),
+    await screen.findByRole("heading", { name: "Nuevo reporte semanal" }),
   ).toBeInTheDocument();
   expect(
     screen.getByRole("link", { name: /Nuevo reporte/ }),
