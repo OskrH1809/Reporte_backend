@@ -9,9 +9,9 @@ estado: nuevo
 > Decisiones fijas del proyecto. Claude y Codex las siguen en cada plan. Cambiarlas requiere un plan dedicado.
 
 ## Qué es
-- **Problema que resuelve:** capturar con selectores el reporte semanal de servicios generales y generar el Excel con el formato actual, un Excel mejorado y su PDF.
+- **Problema que resuelve:** capturar con selectores el reporte semanal de servicios generales y generar el Excel con el formato actual, un Excel mejorado y su PDF, guardándolo o manteniéndolo solo en memoria según `ALMACENAR`.
 - **Usuarios:** una sola persona, en su equipo (local, sin cuentas).
-- **Alcance:** catálogos, captura del reporte, cálculo de horas, fotos y las tres descargas. El proyecto no crecerá: lo más simple que funcione.
+- **Alcance:** catálogos persistentes, captura del reporte, cálculo de horas, fotos y las tres descargas. Con `ALMACENAR=true` se guardan reportes y fotos; con `false`, la semana vive solo en la pestaña y las exportaciones se generan en memoria. El proyecto no crecerá: lo más simple que funcione.
 
 ## Stack
 | Capa | Elección | Versión |
@@ -69,4 +69,6 @@ docker-compose.yml  Makefile  .env.example  README.md
 | Endpoint | `backend/app/routers/catalogos.py` |
 | Modelo + migración | `backend/app/models/` + `backend/alembic/versions/` |
 | Servicio | `backend/app/services/calculos.py` |
+| Generación de Excel | `backend/app/services/reporte_memoria.py` |
 | Componente UI | `frontend/src/pages/Catalogos.tsx` |
+| Formulario de día | `frontend/src/components/FormularioDia.tsx` |
