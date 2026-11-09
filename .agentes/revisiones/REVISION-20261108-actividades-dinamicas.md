@@ -2,8 +2,8 @@
 id: REVISION-20261108-actividades-dinamicas
 plan: PLAN-20261108-actividades-dinamicas
 rama: agente/actividades-dinamicas
-iteracion: 0
-veredicto: cambios
+iteracion: 1
+veredicto: aceptado
 fecha: 2026-11-08
 autor: claude
 ---
@@ -49,4 +49,23 @@ Reporte sintético en un contenedor aislado (sin `./data`): lunes con A–J; fot
 `cambios`. Backend, API, mejorado y editor están bien. El formato actual oculta las actividades cuando hay más de tres, que es justo el caso que pide el plan. Las correcciones van en "Iteración 1" del plan.
 
 ## Métricas
+`primera_pasada=no` · `iteraciones=1` · `archivos_fuera_alcance=0` · `violaciones_normas=0` · `hallazgos_seguridad=0` · `inconsistencias=1`
+
+## Iteración 1 — veredicto: aceptado
+Commits `d753002` (filas ocultas), `e089013` (espacios con fotos), `c8ef006` (tipos y `fotos.FOTOS_DIR`) y el reporte `REPORTE-20261108-actividades-dinamicas-iter1.md`. Solo se tocaron archivos de la iteración (5).
+
+### Verificación re-ejecutada por Claude
+- Backend: ruff limpio; `pytest -q` 42 passed; `alembic upgrade head && alembic check` sin pendientes; bandit y pip-audit limpios.
+- Frontend: lint, format, `test` (49 passed) y `build` en verde; `npm audit --audit-level=high` exit 0. gitleaks sin fugas.
+- Prueba funcional con el mismo reporte sintético:
+  - Formato actual, lunes A–J: los 10 renglones de actividad se ven con sus descripciones y letras.
+  - Fotos acomodadas según su número: A=1 completa, C=2 lado a lado, B, D y J=4 en 2×2, E=3, AD=2.
+  - Las 3 bandas de horas son visibles y el mapa, la observación y las firmas quedan debajo, sin encimarse.
+  - Martes (solo A) igual que antes.
+
+### Hallazgos
+- Los cuatro hallazgos de la iteración 0 están resueltos.
+- Observación (no bloquea): la hoja está configurada con "ajustar a 1 página". Con A–J, el día completo se encoge para caber en una hoja carta y el texto queda pequeño. Si Oscar lo pide, va en un plan aparte permitir varias páginas de alto (`fitToHeight = 0`).
+
+### Métricas
 `primera_pasada=no` · `iteraciones=1` · `archivos_fuera_alcance=0` · `violaciones_normas=0` · `hallazgos_seguridad=0` · `inconsistencias=1`

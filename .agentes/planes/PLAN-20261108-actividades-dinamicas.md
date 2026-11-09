@@ -1,6 +1,6 @@
 ---
 id: PLAN-20261108-actividades-dinamicas
-estado: en_ejecucion      # borrador | aprobado | en_ejecucion | cerrado
+estado: cerrado           # borrador | aprobado | en_ejecucion | cerrado
 rama: agente/actividades-dinamicas
 rama_base: agente/diseno-ui   # main todavía no tiene el código; crear la rama desde aquí
 stack: fastapi
