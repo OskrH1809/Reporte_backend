@@ -9,6 +9,7 @@ from app.routers.reportes import obtener_reporte
 from app.services.excel_formato import generar_formato
 from app.services.excel_mejorado import generar_mejorado
 from app.services.pdf import generar_pdf
+from app.services.reporte_memoria import catalogos_exportacion, desde_orm
 
 DatabaseSession = Annotated[Session, Depends(get_db)]
 router_guardado = APIRouter(prefix="/api/reportes", tags=["exportacion"])
@@ -30,14 +31,17 @@ def exportar(
     session: DatabaseSession,
 ) -> Response:
     reporte = obtener_reporte(session, reporte_id)
+    reporte_memoria = desde_orm(reporte)
     codigo = f"CH-RSG-{reporte.semana}-{reporte.anio}"
     if tipo == "formato":
+        colaboradores, herramientas, _materiales = catalogos_exportacion(session, solo_activos=True)
         return _respuesta(
-            generar_formato(reporte),
+            generar_formato(reporte_memoria, colaboradores, herramientas),
             f"{codigo}.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    mejorado = generar_mejorado(reporte)
+    colaboradores, herramientas, materiales = catalogos_exportacion(session, solo_activos=False)
+    mejorado = generar_mejorado(reporte_memoria, colaboradores, herramientas, materiales)
     if tipo == "mejorado":
         return _respuesta(
             mejorado,

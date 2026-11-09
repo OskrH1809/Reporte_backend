@@ -10,14 +10,12 @@ from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor, XD
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.worksheet.pagebreak import Break
 from openpyxl.worksheet.worksheet import Worksheet
-from sqlalchemy import select
-from sqlalchemy.orm import object_session
 
-from app.models import Colaborador, Dia, Herramienta, Material, Reporte
+from app.models import Colaborador, Herramienta, Material
 from app.models.reportes import LETRAS_ACTIVIDAD
-from app.services import fotos
 from app.services.calculos import jornada_dia, totales_dia
 from app.services.excel_formato import EMU_POR_PIXEL, PLANTILLAS_DIR, texto_seguro
+from app.services.reporte_memoria import DiaMemoria, ReporteMemoria
 
 VERDE_OSCURO = "176B2C"
 VERDE_CLARO = "EAF7ED"
@@ -128,14 +126,14 @@ def _tabla(hoja: Worksheet, fila: int, columnas: list[Columna], filas: list[list
 
 def _anclar_imagen(
     hoja: Worksheet,
-    ruta: Path,
+    origen: Path | BytesIO,
     fila: int,
     columna: int,
     ancho_maximo: int,
     alto_maximo: int,
     ancho_recuadro: int,
 ) -> None:
-    imagen = ExcelImage(ruta)
+    imagen = ExcelImage(origen)
     escala = min(ancho_maximo / imagen.width, alto_maximo / imagen.height)
     imagen.width = max(1, round(imagen.width * escala))
     imagen.height = max(1, round(imagen.height * escala))
@@ -193,13 +191,13 @@ def _tarjetas(hoja: Worksheet, fila: int, indicadores: list[tuple[str, object]])
     return fila + 3
 
 
-def _totales_reporte(reporte: Reporte) -> list[tuple[int, float, int, list[str]]]:
+def _totales_reporte(reporte: ReporteMemoria) -> list[tuple[int, float, int, list[str]]]:
     return [totales_dia(dia, jornada_dia(dia)) for dia in reporte.dias]
 
 
 def _resumen(
     libro: Workbook,
-    reporte: Reporte,
+    reporte: ReporteMemoria,
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
     materiales: list[Material],
@@ -358,12 +356,9 @@ def _resumen(
     _finalizar_hoja(hoja)
 
 
-def _seccion_fotos(hoja: Worksheet, dia: Dia, fila: int) -> int:
+def _seccion_fotos(hoja: Worksheet, dia: DiaMemoria, fila: int) -> int:
     fotos_existentes = [
-        foto
-        for espacio in ESPACIOS_FOTOS
-        for foto in dia.fotos
-        if foto.espacio == espacio and (fotos.FOTOS_DIR / Path(foto.archivo).name).is_file()
+        foto for espacio in ESPACIOS_FOTOS for foto in dia.fotos if foto.espacio == espacio
     ]
     if not fotos_existentes:
         return fila
@@ -395,7 +390,7 @@ def _seccion_fotos(hoja: Worksheet, dia: Dia, fila: int) -> int:
             for posicion, foto in enumerate(grupo[indice : indice + 2]):
                 _anclar_imagen(
                     hoja,
-                    fotos.FOTOS_DIR / Path(foto.archivo).name,
+                    BytesIO(foto.contenido),
                     fila,
                     0 if posicion == 0 else 6,
                     340,
@@ -407,7 +402,9 @@ def _seccion_fotos(hoja: Worksheet, dia: Dia, fila: int) -> int:
     return fila + 1
 
 
-def _mapa_observacion_firmas(hoja: Worksheet, reporte: Reporte, dia: Dia, fila: int) -> int:
+def _mapa_observacion_firmas(
+    hoja: Worksheet, reporte: ReporteMemoria, dia: DiaMemoria, fila: int
+) -> int:
     hoja.row_breaks.append(Break(id=fila - 1))
     mapa = ExcelImage(PLANTILLAS_DIR / "mapa.png")
     alto_mapa = round(420 * mapa.height / mapa.width)
@@ -434,7 +431,7 @@ def _mapa_observacion_firmas(hoja: Worksheet, reporte: Reporte, dia: Dia, fila: 
     return fila + 2
 
 
-def _hoja_dia(libro: Workbook, reporte: Reporte, dia: Dia, nombre: str) -> None:
+def _hoja_dia(libro: Workbook, reporte: ReporteMemoria, dia: DiaMemoria, nombre: str) -> None:
     hoja = libro.create_sheet(nombre)
     _configurar_hoja(hoja)
     fila = _encabezado(hoja, nombre, f"{dia.fecha:%d/%m/%Y}")
@@ -516,13 +513,12 @@ def _finalizar_hoja(hoja: Worksheet) -> None:
     hoja.print_area = f"A1:L{hoja.max_row}"
 
 
-def generar_mejorado(reporte: Reporte) -> bytes:
-    session = object_session(reporte)
-    if session is None:
-        raise RuntimeError("El reporte debe estar asociado a una sesión")
-    colaboradores = list(session.scalars(select(Colaborador).order_by(Colaborador.orden)))
-    herramientas = list(session.scalars(select(Herramienta).order_by(Herramienta.orden)))
-    materiales = list(session.scalars(select(Material).order_by(Material.orden)))
+def generar_mejorado(
+    reporte: ReporteMemoria,
+    colaboradores: list[Colaborador],
+    herramientas: list[Herramienta],
+    materiales: list[Material],
+) -> bytes:
     libro = Workbook()
     _resumen(libro, reporte, colaboradores, herramientas, materiales)
     for dia, nombre in zip(reporte.dias, NOMBRES_DIAS, strict=True):

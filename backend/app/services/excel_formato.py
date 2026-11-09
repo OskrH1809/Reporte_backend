@@ -13,13 +13,11 @@ from openpyxl.drawing.spreadsheet_drawing import (
 )
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
-from sqlalchemy import select
-from sqlalchemy.orm import object_session
 
-from app.models import Actividad, Colaborador, Dia, Herramienta, Reporte
+from app.models import Colaborador, Herramienta
 from app.models.reportes import LETRAS_ACTIVIDAD
-from app.services import fotos
 from app.services.calculos import jornada_dia
+from app.services.reporte_memoria import ActividadMemoria, DiaMemoria, ReporteMemoria
 
 PLANTILLAS_DIR = Path(__file__).resolve().parents[1] / "plantillas"
 NOMBRES_DIAS = ("Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado")
@@ -75,17 +73,21 @@ def _marcador(hoja: Worksheet, columna: int, fila: int, x_px: int, y_px: int) ->
     )
 
 
-def _acomodar_fotos(hoja: Worksheet, rutas: list[Path], fila_inicio: int, fila_fin: int) -> None:
-    if not rutas:
+def _acomodar_fotos(
+    hoja: Worksheet, contenidos: list[bytes], fila_inicio: int, fila_fin: int
+) -> None:
+    if not contenidos:
         return
-    filas, columnas = (1, 1) if len(rutas) == 1 else ((1, 2) if len(rutas) == 2 else (2, 2))
+    filas, columnas = (
+        (1, 1) if len(contenidos) == 1 else ((1, 2) if len(contenidos) == 2 else (2, 2))
+    )
     ancho_area = sum(_pixeles_columna(hoja, indice) for indice in range(14, 21))
     alto_area = sum(_pixeles_fila(hoja, fila) for fila in range(fila_inicio, fila_fin + 1))
     ancho_casilla = ancho_area / columnas
     alto_casilla = alto_area / filas
     margen = 4
-    for indice, ruta in enumerate(rutas[:4]):
-        imagen = ExcelImage(ruta)
+    for indice, contenido in enumerate(contenidos[:4]):
+        imagen = ExcelImage(BytesIO(contenido))
         ancho_disponible = max(1, ancho_casilla - 2 * margen)
         alto_disponible = max(1, alto_casilla - 2 * margen)
         escala = min(ancho_disponible / imagen.width, alto_disponible / imagen.height)
@@ -105,7 +107,7 @@ def _acomodar_fotos(hoja: Worksheet, rutas: list[Path], fila_inicio: int, fila_f
 
 def _agregar_fotos(
     hoja: Worksheet,
-    dia: Dia,
+    dia: DiaMemoria,
     extras: tuple[str, ...],
     desplazamiento_bandas: int,
     desplazamiento: int,
@@ -121,12 +123,8 @@ def _agregar_fotos(
         "AD": (30 + desplazamiento, 31 + desplazamiento),
     }
     for espacio, (fila_inicio, fila_fin) in areas.items():
-        rutas = [
-            fotos.FOTOS_DIR / Path(foto.archivo).name
-            for foto in dia.fotos
-            if foto.espacio == espacio and (fotos.FOTOS_DIR / Path(foto.archivo).name).is_file()
-        ][:4]
-        _acomodar_fotos(hoja, rutas, fila_inicio, fila_fin)
+        contenidos = [foto.contenido for foto in dia.fotos if foto.espacio == espacio][:4]
+        _acomodar_fotos(hoja, contenidos, fila_inicio, fila_fin)
 
 
 def _insertar_filas(hoja: Worksheet, fila: int, cantidad: int) -> None:
@@ -156,7 +154,7 @@ def _insertar_filas(hoja: Worksheet, fila: int, cantidad: int) -> None:
 
 
 def _insertar_actividades(
-    hoja: Worksheet, actividades: dict[str, Actividad], extras: tuple[str, ...]
+    hoja: Worksheet, actividades: dict[str, ActividadMemoria], extras: tuple[str, ...]
 ) -> None:
     if not extras:
         return
@@ -177,7 +175,10 @@ def _insertar_actividades(
 
 
 def _insertar_bandas(
-    hoja: Worksheet, actividades: dict[str, Actividad], extras: tuple[str, ...], jornada: float
+    hoja: Worksheet,
+    actividades: dict[str, ActividadMemoria],
+    extras: tuple[str, ...],
+    jornada: float,
 ) -> list[str]:
     bandas = ceil(len(extras) / 3)
     if not bandas:
@@ -232,8 +233,8 @@ def _insertar_bandas(
 
 def _llenar_comunes(
     hoja: Worksheet,
-    reporte: Reporte,
-    dia: Dia,
+    reporte: ReporteMemoria,
+    dia: DiaMemoria,
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
 ) -> None:
@@ -267,8 +268,8 @@ def _llenar_comunes(
 
 def _llenar_dia(
     hoja: Worksheet,
-    reporte: Reporte,
-    dia: Dia,
+    reporte: ReporteMemoria,
+    dia: DiaMemoria,
     colaboradores: list[Colaborador],
     herramientas: list[Herramienta],
 ) -> list[str]:
@@ -325,24 +326,11 @@ def _llenar_dia(
     return totales
 
 
-def generar_formato(reporte: Reporte) -> bytes:
-    session = object_session(reporte)
-    if session is None:
-        raise RuntimeError("El reporte debe estar asociado a una sesión")
-    colaboradores = list(
-        session.scalars(
-            select(Colaborador)
-            .where(Colaborador.activo.is_(True))
-            .order_by(Colaborador.orden, Colaborador.id)
-        )
-    )
-    herramientas = list(
-        session.scalars(
-            select(Herramienta)
-            .where(Herramienta.activo.is_(True))
-            .order_by(Herramienta.orden, Herramienta.id)
-        )
-    )
+def generar_formato(
+    reporte: ReporteMemoria,
+    colaboradores: list[Colaborador],
+    herramientas: list[Herramienta],
+) -> bytes:
     libro = load_workbook(PLANTILLAS_DIR / "plantilla_formato.xlsx")
     hojas_dias = []
     for dia, nombre in zip(reporte.dias, NOMBRES_DIAS, strict=True):

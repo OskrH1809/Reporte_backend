@@ -19,6 +19,7 @@ from app.models import (
 )
 from app.services import fotos
 from app.services.excel_formato import EMU_POR_PIXEL, generar_formato
+from app.services.reporte_memoria import catalogos_exportacion, desde_orm
 
 
 def _reporte(session: Session, faker: Faker, semana: int = 43) -> Reporte:
@@ -48,9 +49,14 @@ def _reporte(session: Session, faker: Faker, semana: int = 43) -> Reporte:
     return reporte
 
 
+def _generar_formato(reporte: Reporte, session: Session) -> bytes:
+    colaboradores, herramientas, _materiales = catalogos_exportacion(session, solo_activos=True)
+    return generar_formato(desde_orm(reporte), colaboradores, herramientas)
+
+
 def test_formato_tiene_hojas_celdas_y_formulas(session: Session, faker: Faker) -> None:
     reporte = _reporte(session, faker)
-    libro = load_workbook(BytesIO(generar_formato(reporte)), data_only=False)
+    libro = load_workbook(BytesIO(_generar_formato(reporte, session)), data_only=False)
 
     assert libro.sheetnames == [
         "Lunes",
@@ -74,7 +80,7 @@ def test_formato_tiene_hojas_celdas_y_formulas(session: Session, faker: Faker) -
 
 def test_formato_conserva_letra_de_colaborador(session: Session, faker: Faker) -> None:
     reporte = _reporte(session, faker, semana=44)
-    libro = load_workbook(BytesIO(generar_formato(reporte)))
+    libro = load_workbook(BytesIO(_generar_formato(reporte, session)))
 
     lunes = libro["Lunes"]
     assert "A, B" in [lunes.cell(fila, 8).value for fila in range(10, 23)]
@@ -92,7 +98,7 @@ def test_formato_inserta_actividades_d_y_e(session: Session, faker: Faker) -> No
     reporte.elaborado_por = firmante
     session.commit()
 
-    libro = load_workbook(BytesIO(generar_formato(reporte)), data_only=False)
+    libro = load_workbook(BytesIO(_generar_formato(reporte, session)), data_only=False)
     lunes = libro["Lunes"]
 
     assert lunes["M24"].value == "D"
@@ -116,7 +122,7 @@ def test_formato_inserta_tres_bandas_hasta_j(session: Session, faker: Faker) -> 
     )
     session.commit()
 
-    libro = load_workbook(BytesIO(generar_formato(reporte)), data_only=False)
+    libro = load_workbook(BytesIO(_generar_formato(reporte, session)), data_only=False)
     lunes = libro["Lunes"]
 
     assert [lunes.cell(24, columna).value for columna in range(13, 16)] == list("DEF")
@@ -146,7 +152,7 @@ def test_formato_no_oculta_filas_insertadas(
     )
     session.commit()
 
-    lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
+    lunes = load_workbook(BytesIO(_generar_formato(reporte, session)))["Lunes"]
     ocultas = {
         fila for fila in range(1, lunes.max_row + 1) if lunes.row_dimensions[fila].hidden is True
     }
@@ -164,7 +170,7 @@ def test_formato_rellena_huecos_hasta_actividad_mas_alta(session: Session, faker
     ]
     session.commit()
 
-    lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
+    lunes = load_workbook(BytesIO(_generar_formato(reporte, session)))["Lunes"]
 
     assert lunes["D32"].value is None
     assert lunes["D34"].value is None
@@ -176,7 +182,7 @@ def test_formato_escapa_formula_en_actividad_extra(session: Session, faker: Fake
     reporte.dias[0].actividades.append(Actividad(letra="D", descripcion="=1+1"))
     session.commit()
 
-    lunes = load_workbook(BytesIO(generar_formato(reporte)), data_only=False)["Lunes"]
+    lunes = load_workbook(BytesIO(_generar_formato(reporte, session)), data_only=False)["Lunes"]
 
     assert lunes["D35"].value == "'=1+1"
 
@@ -192,12 +198,32 @@ def test_formato_incluye_actividad_vacia_con_foto(
     session.commit()
     monkeypatch.setattr(fotos, "FOTOS_DIR", tmp_path)
 
-    lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
+    lunes = load_workbook(BytesIO(_generar_formato(reporte, session)))["Lunes"]
 
     assert lunes["M35"].value == "D"
     assert lunes["D35"].value is None
     assert len(lunes._images) - 2 == 1
     assert lunes._images[0].anchor._from.row + 1 == 35
+
+
+def test_desde_orm_omite_foto_ausente(
+    session: Session, faker: Faker, tmp_path, monkeypatch
+) -> None:
+    reporte = _reporte(session, faker, semana=16)
+    reporte.dias[0].fotos.append(
+        Foto(
+            espacio="A",
+            orden=1,
+            archivo="ausente.jpg",
+            nombre_original="ausente.jpg",
+        )
+    )
+    session.commit()
+    monkeypatch.setattr(fotos, "FOTOS_DIR", tmp_path)
+
+    reporte_memoria = desde_orm(reporte)
+
+    assert reporte_memoria.dias[0].fotos == []
 
 
 def _pixeles_columna(hoja, indice: int) -> int:
@@ -269,7 +295,7 @@ def test_formato_acomoda_fotos_sin_salirse_ni_superponerse(
     session.commit()
     monkeypatch.setattr(fotos, "FOTOS_DIR", tmp_path)
 
-    lunes = load_workbook(BytesIO(generar_formato(reporte)))["Lunes"]
+    lunes = load_workbook(BytesIO(_generar_formato(reporte, session)))["Lunes"]
     imagenes = lunes._images[:-2]
     rectangulos = [_rectangulo(lunes, imagen, fila_inicio) for imagen in imagenes]
     ancho_area = sum(_pixeles_columna(lunes, columna) for columna in range(14, 21))
