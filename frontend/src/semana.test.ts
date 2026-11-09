@@ -1,6 +1,7 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
-import { armarFormData, crearSemana } from "./semana";
+import type { ImportacionRead } from "./api/importar";
+import { armarFormData, crearSemana, semanaDesdeImportacion } from "./semana";
 
 it("crea la semana 45 de 2026 de lunes a sábado", () => {
   const semana = crearSemana(2026, 45);
@@ -56,4 +57,47 @@ it("arma datos exactos, filtra actividades vacías e indexa fotos", () => {
   expect(datos.dias[0]!.fotos).toEqual([{ indice: 0, espacio: "A" }]);
   expect(datos.dias[0]!.fecha).toBeUndefined();
   expect(formulario.getAll("fotos")).toHaveLength(1);
+});
+
+it("reconstruye dos fotos importadas en días y espacios distintos", () => {
+  const contenido = btoa("foto");
+  const importacion: ImportacionRead = {
+    datos: {
+      anio: 2026,
+      semana: 45,
+      elaborado_por_id: null,
+      revisado_por_id: null,
+      dias: Array.from({ length: 6 }, (_valor, dia_semana) => ({
+        dia_semana,
+        observacion: "",
+        texto_fotos: "Evidencia",
+        actividades: [],
+        herramientas: [],
+        materiales: [],
+        fotos: [],
+      })),
+    },
+    fotos: [
+      { indice: 0, espacio: "A", dia_semana: 0, contenido_base64: contenido },
+      { indice: 1, espacio: "AD", dia_semana: 2, contenido_base64: contenido },
+    ],
+    avisos: [],
+    origen: "respaldo",
+  };
+  const crearUrl = vi
+    .spyOn(URL, "createObjectURL")
+    .mockReturnValueOnce("blob:foto-lunes")
+    .mockReturnValueOnce("blob:foto-miercoles");
+
+  const semana = semanaDesdeImportacion(importacion);
+
+  expect(semana.dias[0]!.fotos[0]).toMatchObject({
+    espacio: "A",
+    url: "blob:foto-lunes",
+  });
+  expect(semana.dias[2]!.fotos[0]).toMatchObject({
+    espacio: "AD",
+    url: "blob:foto-miercoles",
+  });
+  expect(crearUrl).toHaveBeenCalledTimes(2);
 });

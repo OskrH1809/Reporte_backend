@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { listarCatalogo } from "../api/catalogos";
+import { importarExcel } from "../api/importar";
 import type { DiaInput, Letra } from "../api/reportes";
 import { Confirmar, useAvisos } from "../components/Avisos";
 import { BotonDescarga } from "../components/BotonDescarga";
@@ -10,6 +11,7 @@ import {
   armarFormData,
   comprimirFoto,
   crearSemana,
+  semanaDesdeImportacion,
   semanaISO,
   type FotoLocal,
 } from "../semana";
@@ -18,7 +20,11 @@ import "../editor.css";
 const nombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 let siguienteFoto = 0;
 
-export function EditorSemana() {
+export function EditorSemana({
+  maxFotosPorEspacio,
+}: {
+  maxFotosPorEspacio: number;
+}) {
   const actual = semanaISO(new Date());
   const [semana, setSemana] = useState(() =>
     crearSemana(actual.anio, actual.semana),
@@ -28,12 +34,17 @@ export function EditorSemana() {
   const [diaActual, setDiaActual] = useState(0);
   const [modificado, setModificado] = useState(false);
   const [confirmarNueva, setConfirmarNueva] = useState(false);
+  const [confirmarImportacion, setConfirmarImportacion] = useState(false);
+  const [archivoPendiente, setArchivoPendiente] = useState<File>();
+  const [importando, setImportando] = useState(false);
+  const [avisosImportacion, setAvisosImportacion] = useState<string[]>([]);
   const [hayErrores, setHayErrores] = useState(false);
   const [subiendoEspacio, setSubiendoEspacio] = useState<Letra | "AD">();
   const [actividadesAbiertas, setActividadesAbiertas] = useState(
     new Set<Letra>(),
   );
   const fotosActuales = useRef<FotoLocal[]>([]);
+  const selectorArchivo = useRef<HTMLInputElement>(null);
   const { avisar } = useAvisos();
   const colaboradores = useQuery({
     queryKey: ["catalogos", "colaboradores"],
@@ -85,14 +96,65 @@ export function EditorSemana() {
     setActividadesAbiertas(new Set());
     setModificado(false);
     setConfirmarNueva(false);
+    setAvisosImportacion([]);
+  }
+  async function abrirReporte(archivo: File) {
+    setImportando(true);
+    try {
+      const importacion = await importarExcel(archivo);
+      const nuevaSemana = semanaDesdeImportacion(importacion);
+      for (const foto of fotosActuales.current) URL.revokeObjectURL(foto.url);
+      setSemana(nuevaSemana);
+      setAnioNuevo(nuevaSemana.anio);
+      setSemanaNueva(nuevaSemana.semana);
+      setDiaActual(0);
+      setActividadesAbiertas(
+        new Set(
+          nuevaSemana.dias[0]!.actividades.filter(
+            (actividad) =>
+              actividad.descripcion || actividad.asignaciones.length,
+          ).map((actividad) => actividad.letra),
+        ),
+      );
+      const avisos = [
+        ...importacion.avisos,
+        ...(importacion.origen === "formato"
+          ? ["Se leyó el formato sin respaldo; revisa horas y materiales."]
+          : []),
+      ];
+      setAvisosImportacion(avisos);
+      setModificado(true);
+      avisar(
+        `Se abrió la semana ${nuevaSemana.semana} con ${avisos.length} avisos`,
+        avisos.length ? "info" : "ok",
+      );
+    } catch (error) {
+      avisar(
+        error instanceof Error ? error.message : "No se pudo abrir el reporte",
+        "error",
+      );
+    } finally {
+      setImportando(false);
+      setArchivoPendiente(undefined);
+      if (selectorArchivo.current) selectorArchivo.current.value = "";
+    }
+  }
+  function seleccionarReporte(archivo: File) {
+    if (modificado) {
+      setArchivoPendiente(archivo);
+      setConfirmarImportacion(true);
+    } else {
+      void abrirReporte(archivo);
+    }
   }
   async function agregarFotos(espacio: Letra | "AD", archivos: File[]) {
     const disponibles =
-      4 - dia.fotos.filter((foto) => foto.espacio === espacio).length;
+      maxFotosPorEspacio -
+      dia.fotos.filter((foto) => foto.espacio === espacio).length;
     const seleccionados = archivos.slice(0, disponibles);
     if (archivos.length > disponibles)
       avisar(
-        `Solo se agregaron ${seleccionados.length} foto(s); el máximo es 4.`,
+        `Solo se agregaron ${seleccionados.length} foto(s); el máximo es ${maxFotosPorEspacio}.`,
         "info",
       );
     setSubiendoEspacio(espacio);
@@ -147,6 +209,25 @@ export function EditorSemana() {
           </p>
         </div>
         <div className="cluster">
+          <input
+            ref={selectorArchivo}
+            type="file"
+            accept=".xlsx"
+            hidden
+            aria-label="Archivo de reporte guardado"
+            onChange={(event) => {
+              const archivo = event.target.files?.[0];
+              if (archivo) seleccionarReporte(archivo);
+            }}
+          />
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={importando}
+            onClick={() => selectorArchivo.current?.click()}
+          >
+            {importando ? "Abriendo…" : "Abrir reporte guardado"}
+          </button>
           <BotonDescarga
             tipo="formato"
             etiqueta="Formato actual"
@@ -253,6 +334,8 @@ export function EditorSemana() {
           )
         }
         onVerificacion={setHayErrores}
+        advertencias={avisosImportacion}
+        maxFotosPorEspacio={maxFotosPorEspacio}
       />
 
       <Confirmar
@@ -262,6 +345,21 @@ export function EditorSemana() {
         textoConfirmar="Crear nueva"
         onConfirmar={iniciarSemana}
         onCancelar={() => setConfirmarNueva(false)}
+      />
+      <Confirmar
+        abierto={confirmarImportacion}
+        titulo="Abrir reporte guardado"
+        mensaje="Se reemplazará la semana actual. ¿Continuar?"
+        textoConfirmar="Abrir reporte"
+        onConfirmar={() => {
+          setConfirmarImportacion(false);
+          if (archivoPendiente) void abrirReporte(archivoPendiente);
+        }}
+        onCancelar={() => {
+          setConfirmarImportacion(false);
+          setArchivoPendiente(undefined);
+          if (selectorArchivo.current) selectorArchivo.current.value = "";
+        }}
       />
     </section>
   );

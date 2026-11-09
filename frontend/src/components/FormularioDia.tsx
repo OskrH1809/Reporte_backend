@@ -29,6 +29,7 @@ interface Props {
   advertencias?: string[];
   onExcesoFotos?: (agregadas: number, limite: number) => void;
   onVerificacion?: (hayErrores: boolean) => void;
+  maxFotosPorEspacio?: number;
 }
 
 interface SelectorFirmasProps {
@@ -104,6 +105,7 @@ export function FormularioDia({
   advertencias = [],
   onExcesoFotos,
   onVerificacion,
+  maxFotosPorEspacio = 4,
 }: Props) {
   const actividades = calcularHoras(dia.actividades, jornada);
   const nombres = new Map(
@@ -288,19 +290,21 @@ export function FormularioDia({
           <h2 className="card-title">Fotos</h2>
         </div>
         <div className="fotos-secciones">
-          {espaciosFotos(dia.actividades).map(([espacio, etiqueta, maximo]) => (
-            <SelectorFotos
-              key={espacio}
-              espacio={espacio}
-              etiqueta={etiqueta}
-              maximo={maximo}
-              fotos={fotos}
-              subiendo={subiendoEspacio === espacio}
-              onExceso={onExcesoFotos}
-              onSubir={(archivos) => onSubirFotos(espacio, archivos)}
-              onEliminar={onEliminarFoto}
-            />
-          ))}
+          {espaciosFotos(dia.actividades, maxFotosPorEspacio).map(
+            ([espacio, etiqueta, maximo]) => (
+              <SelectorFotos
+                key={espacio}
+                espacio={espacio}
+                etiqueta={etiqueta}
+                maximo={maximo}
+                fotos={fotos}
+                subiendo={subiendoEspacio === espacio}
+                onExceso={onExcesoFotos}
+                onSubir={(archivos) => onSubirFotos(espacio, archivos)}
+                onEliminar={onEliminarFoto}
+              />
+            ),
+          )}
         </div>
       </section>
 
@@ -346,11 +350,16 @@ export function FormularioDia({
                 {item.mensaje}
               </p>
             ))}
-            {advertencias.map((aviso) => (
-              <p key={aviso} className="alert alert-warn" role="status">
-                {aviso}
-              </p>
-            ))}
+            {advertencias.length ? (
+              <details>
+                <summary>Revisa estos puntos</summary>
+                {advertencias.map((aviso) => (
+                  <p key={aviso} className="alert alert-warn" role="status">
+                    {aviso}
+                  </p>
+                ))}
+              </details>
+            ) : null}
           </div>
         )}
       </section>

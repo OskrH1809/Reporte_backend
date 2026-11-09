@@ -1,5 +1,6 @@
 import type { DiaInput, Letra } from "./api/reportes";
 import { serializarDia } from "./api/reportes";
+import type { ImportacionRead } from "./api/importar";
 import { armarActividades } from "./actividades";
 
 export const TEXTO_FOTOS_PREDETERMINADO =
@@ -70,6 +71,50 @@ export function crearSemana(anio: number, semana: number): SemanaLocal {
       materiales: [],
       fotos: [],
     })),
+  };
+}
+
+function blobBase64(contenido: string): Blob {
+  const binario = atob(contenido);
+  const bytes = Uint8Array.from(binario, (caracter) => caracter.charCodeAt(0));
+  return new Blob([bytes], { type: "image/jpeg" });
+}
+
+export function semanaDesdeImportacion(
+  importacion: ImportacionRead,
+): SemanaLocal {
+  const base = crearSemana(importacion.datos.anio, importacion.datos.semana);
+  return {
+    ...base,
+    elaborado_por_id: importacion.datos.elaborado_por_id,
+    revisado_por_id: importacion.datos.revisado_por_id,
+    dias: base.dias.map((diaBase) => {
+      const dia = importacion.datos.dias.find(
+        (item) => item.dia_semana === diaBase.dia_semana,
+      );
+      if (!dia) return diaBase;
+      const fotos = importacion.fotos
+        .filter((foto) => foto.dia_semana === dia.dia_semana)
+        .map((foto) => {
+          const archivo = blobBase64(foto.contenido_base64);
+          return {
+            id: `foto-importada-${foto.indice}`,
+            espacio: foto.espacio,
+            archivo,
+            url: URL.createObjectURL(archivo),
+            nombre_original: `foto-importada-${foto.indice + 1}.jpg`,
+          };
+        });
+      return {
+        ...diaBase,
+        observacion: dia.observacion,
+        texto_fotos: dia.texto_fotos,
+        actividades: armarActividades(dia.actividades, fotos),
+        herramientas: dia.herramientas,
+        materiales: dia.materiales,
+        fotos,
+      };
+    }),
   };
 }
 

@@ -81,7 +81,18 @@ export function RutasAplicacion() {
   return (
     <Routes>
       <Route element={<Layout almacenar={almacenar} />}>
-        <Route index element={almacenar ? <Reportes /> : <EditorSemana />} />
+        <Route
+          index
+          element={
+            almacenar ? (
+              <Reportes />
+            ) : (
+              <EditorSemana
+                maxFotosPorEspacio={config.data.max_fotos_por_espacio}
+              />
+            )
+          }
+        />
         <Route
           path="reportes/:id"
           element={almacenar ? <EditorReporte /> : <Navigate to="/" replace />}

@@ -2,7 +2,7 @@ import { LETRAS, type Actividad, type Foto, type Letra } from "./api/reportes";
 
 export function armarActividades(
   guardadas: Actividad[],
-  fotos: Foto[] = [],
+  fotos: Pick<Foto, "espacio">[] = [],
 ): Actividad[] {
   const porLetra = new Map(
     guardadas.map((actividad) => [actividad.letra, actividad]),
@@ -48,13 +48,14 @@ export function puedeQuitar(
 
 export function espaciosFotos(
   actividades: Actividad[],
+  maximo = 4,
 ): [Letra | "AD", string, number][] {
   return [
     ...actividades.map((actividad): [Letra, string, number] => [
       actividad.letra,
       `Actividad ${actividad.letra}`,
-      4,
+      maximo,
     ]),
-    ["AD", "Antes y después", 4],
+    ["AD", "Antes y después", maximo],
   ];
 }
