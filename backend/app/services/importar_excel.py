@@ -4,6 +4,7 @@ import json
 import re
 import unicodedata
 from dataclasses import dataclass
+from datetime import date, datetime
 from io import BytesIO
 from typing import Literal
 
@@ -14,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.errors import DomainError, InvalidFileError
-from app.models import Colaborador, Firmante
+from app.models import Colaborador, Firmante, Herramienta
+from app.models.reportes import TEXTO_FOTOS_PREDETERMINADO
 from app.schemas.exportar import ReporteExportar
 from app.services.fotos import normalizar_foto
 from app.services.respaldo_excel import MARCADOR_RESPALDO, VERSION_RESPALDO
@@ -290,6 +292,255 @@ def _leer_respaldo(libro, session: Session) -> Importacion:
         raise InvalidFileError("El respaldo del archivo está dañado") from error
 
 
+def _fecha_lunes(libro, avisos: list[str]) -> date:
+    valor = libro["Lunes"]["C6"].value
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    if isinstance(valor, str):
+        try:
+            return datetime.strptime(valor.strip(), "%d/%m/%Y").date()
+        except ValueError:
+            pass
+    semana = libro["Lunes"]["I6"].value
+    try:
+        semana = int(semana)
+        lunes = date.fromisocalendar(date.today().year, semana, 1)
+    except (TypeError, ValueError) as error:
+        raise InvalidFileError("No se reconoce el formato del reporte") from error
+    avisos.append("No se encontró una fecha válida; se usó el año actual")
+    return lunes
+
+
+def _buscar_firma(hoja, etiqueta: str) -> str:
+    for fila in hoja.iter_rows():
+        for celda in fila:
+            if _nombre_normalizado(celda.value).startswith(_nombre_normalizado(etiqueta)):
+                for siguiente in hoja.iter_cols(
+                    min_col=celda.column + 1,
+                    max_col=min(hoja.max_column, celda.column + 6),
+                    min_row=celda.row,
+                    max_row=celda.row,
+                ):
+                    valor = _texto(siguiente[0].value)
+                    if valor:
+                        return valor
+    return ""
+
+
+def _leer_fotos_formato(
+    hoja,
+    filas_actividades: list[tuple[int, str]],
+    fila_ad: int | None,
+    dia_semana: int,
+    fotos_dia: list[dict],
+    contenidos: list[bytes],
+    avisos: list[str],
+) -> None:
+    rangos: list[tuple[str, int, int]] = []
+    for indice, (fila, letra) in enumerate(filas_actividades):
+        siguiente = (
+            filas_actividades[indice + 1][0]
+            if indice + 1 < len(filas_actividades)
+            else fila_ad or fila + 1
+        )
+        rangos.append((letra, fila, siguiente - 1))
+    if fila_ad is not None:
+        rangos.append(("AD", fila_ad, fila_ad + 1))
+    cantidades: dict[str, int] = {}
+    imagenes = sorted(
+        (
+            imagen
+            for imagen in hoja._images
+            if hasattr(imagen.anchor, "_from") and 13 <= imagen.anchor._from.col <= 19
+        ),
+        key=lambda imagen: (imagen.anchor._from.row, imagen.anchor._from.col),
+    )
+    for imagen in imagenes:
+        fila = imagen.anchor._from.row + 1
+        espacio = next(
+            (letra for letra, inicio, fin in rangos if inicio <= fila <= fin),
+            None,
+        )
+        if espacio is None:
+            continue
+        cantidades[espacio] = cantidades.get(espacio, 0) + 1
+        if cantidades[espacio] > 4:
+            avisos.append(
+                f"{NOMBRES_DIAS[dia_semana]}: se omitieron fotos extra del espacio {espacio}"
+            )
+            continue
+        try:
+            contenido = normalizar_foto(imagen._data(), get_settings().max_foto_mb)
+        except DomainError as error:
+            raise InvalidFileError("No se pudo leer una foto del reporte") from error
+        indice = len(contenidos)
+        contenidos.append(contenido)
+        fotos_dia.append({"indice": indice, "espacio": espacio})
+
+
+def _leer_formato(libro, session: Session) -> Importacion:
+    if not all(nombre in libro.sheetnames for nombre in NOMBRES_DIAS):
+        raise InvalidFileError(
+            "Este archivo no tiene datos para reabrir; usa un Excel descargado desde la app"
+        )
+    avisos: list[str] = []
+    lunes = _fecha_lunes(libro, avisos)
+    anio, semana, _dia_iso = lunes.isocalendar()
+    colaboradores = {
+        _nombre_normalizado(item.nombre): item
+        for item in session.scalars(select(Colaborador).order_by(Colaborador.id))
+    }
+    herramientas = {
+        _nombre_normalizado(item.nombre): item
+        for item in session.scalars(select(Herramienta).order_by(Herramienta.id))
+    }
+    firmantes = {
+        _nombre_normalizado(item.nombre): item
+        for item in session.scalars(select(Firmante).order_by(Firmante.id))
+    }
+    contenidos: list[bytes] = []
+    dias = []
+    nombres_desconocidos: set[tuple[str, str]] = set()
+    firma_elabora = ""
+    firma_revisa = ""
+    for dia_semana, nombre_dia in enumerate(NOMBRES_DIAS):
+        hoja = libro[nombre_dia]
+        filas_actividades = [
+            (fila, _texto(hoja.cell(fila, 13).value))
+            for fila in range(1, hoja.max_row + 1)
+            if _texto(hoja.cell(fila, 13).value) in LETRAS
+            and isinstance(hoja.cell(fila, 1).value, (int, float))
+        ]
+        actividades = [
+            {
+                "letra": letra,
+                "descripcion": _texto(hoja.cell(fila, 4).value)[:1000],
+                "asignaciones": [],
+            }
+            for fila, letra in filas_actividades
+        ]
+        por_letra = {item["letra"]: item for item in actividades}
+        for fila in range(10, 23):
+            nombre = _texto(hoja.cell(fila, 2).value)
+            letras = [
+                parte
+                for parte in re.split(r"[\s,]+", _texto(hoja.cell(fila, 8).value).upper())
+                if parte in LETRAS
+            ]
+            if not nombre or not letras:
+                continue
+            colaborador = colaboradores.get(_nombre_normalizado(nombre))
+            if colaborador is None:
+                nombres_desconocidos.add(("colaborador", nombre))
+                continue
+            for letra in letras:
+                actividad = por_letra.get(letra)
+                if actividad is None:
+                    actividad = {
+                        "letra": letra,
+                        "descripcion": "",
+                        "asignaciones": [],
+                    }
+                    actividades.append(actividad)
+                    por_letra[letra] = actividad
+                    avisos.append(f"{nombre_dia}: se creó la actividad {letra} sin descripción")
+                actividad["asignaciones"].append(
+                    {
+                        "colaborador_id": colaborador.id,
+                        "horas": None,
+                        "horas_manual": False,
+                    }
+                )
+        herramientas_dia = []
+        for fila in range(10, 24):
+            nombre = _texto(hoja.cell(fila, 18).value)
+            cantidad = hoja.cell(fila, 17).value
+            if not nombre or not isinstance(cantidad, (int, float)) or cantidad <= 0:
+                continue
+            herramienta = herramientas.get(_nombre_normalizado(nombre))
+            if herramienta is None:
+                nombres_desconocidos.add(("herramienta", nombre))
+                continue
+            herramientas_dia.append({"herramienta_id": herramienta.id, "cantidad": float(cantidad)})
+        fila_ad = next(
+            (
+                fila
+                for fila in range(1, hoja.max_row + 1)
+                if isinstance(hoja.cell(fila, 1).value, (int, float))
+                and not _texto(hoja.cell(fila, 13).value)
+                and fila > (filas_actividades[-1][0] if filas_actividades else 20)
+                and _texto(hoja.cell(fila, 4).value)
+            ),
+            None,
+        )
+        texto_fotos = (
+            _texto(hoja.cell(fila_ad, 4).value)[:1000]
+            if fila_ad is not None
+            else TEXTO_FOTOS_PREDETERMINADO
+        )
+        fila_observacion = next(
+            (
+                celda.row + 1
+                for fila in hoja.iter_rows(min_col=1, max_col=1)
+                for celda in fila
+                if _nombre_normalizado(celda.value).startswith("observacion")
+            ),
+            None,
+        )
+        observacion = (
+            _texto(hoja.cell(fila_observacion, 1).value)[:2000]
+            if fila_observacion is not None
+            else ""
+        )
+        fotos_dia: list[dict] = []
+        _leer_fotos_formato(
+            hoja,
+            filas_actividades,
+            fila_ad,
+            dia_semana,
+            fotos_dia,
+            contenidos,
+            avisos,
+        )
+        dia = {
+            "dia_semana": dia_semana,
+            "observacion": observacion,
+            "texto_fotos": texto_fotos,
+            "actividades": sorted(actividades, key=lambda item: item["letra"]),
+            "herramientas": herramientas_dia,
+            "materiales": [],
+            "fotos": fotos_dia,
+        }
+        _recalcular_asignaciones(dia)
+        dias.append(dia)
+        firma_elabora = firma_elabora or _buscar_firma(hoja, "Elaborado por")
+        firma_revisa = firma_revisa or _buscar_firma(hoja, "Revisado por")
+    for tipo, nombre in sorted(nombres_desconocidos):
+        avisos.append(f"No se encontró el {tipo} «{nombre}» en el catálogo")
+    avisos.append("Los materiales no están en el formato actual; agrégalos de nuevo")
+    elaborado = firmantes.get(_nombre_normalizado(firma_elabora))
+    revisado = firmantes.get(_nombre_normalizado(firma_revisa))
+    if firma_elabora and elaborado is None:
+        avisos.append(f"No se encontró el firmante «{firma_elabora}» en el catálogo")
+    if firma_revisa and revisado is None:
+        avisos.append(f"No se encontró el firmante «{firma_revisa}» en el catálogo")
+    try:
+        datos = ReporteExportar.model_validate(
+            {
+                "anio": anio,
+                "semana": semana,
+                "elaborado_por_id": elaborado.id if elaborado else None,
+                "revisado_por_id": revisado.id if revisado else None,
+                "dias": dias,
+            }
+        )
+    except ValidationError as error:
+        raise InvalidFileError("No se reconoce el formato del reporte") from error
+    return Importacion(datos=datos, contenidos=contenidos, avisos=avisos, origen="formato")
+
+
 def leer_excel(contenido: bytes, session: Session) -> Importacion:
     try:
         libro = load_workbook(BytesIO(contenido), read_only=False, data_only=False, keep_vba=False)
@@ -297,6 +548,4 @@ def leer_excel(contenido: bytes, session: Session) -> Importacion:
         raise InvalidFileError("Archivo de Excel no válido") from error
     if "_respaldo" in libro.sheetnames:
         return _leer_respaldo(libro, session)
-    raise InvalidFileError(
-        "Este archivo no tiene datos para reabrir; usa un Excel descargado desde la app"
-    )
+    return _leer_formato(libro, session)

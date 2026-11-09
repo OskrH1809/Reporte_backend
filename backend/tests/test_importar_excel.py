@@ -1,11 +1,13 @@
 import json
 from io import BytesIO
 
+import pytest
 from faker import Faker
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from PIL import Image
 from sqlalchemy.orm import Session
 
+from app.errors import InvalidFileError
 from app.models import Colaborador, Firmante, Herramienta, Material
 from app.schemas.exportar import ReporteExportar
 from app.services.excel_formato import generar_formato
@@ -166,3 +168,71 @@ def test_mejorado_toma_descripcion_cantidades_y_observacion(session: Session, fa
     assert lunes.herramientas[0].cantidad == 7
     assert lunes.materiales[0].cantidad == 9
     assert lunes.observacion == "Observación mejorada editada"
+
+
+def test_formato_sin_respaldo_recupera_campos_y_fotos(session: Session, faker: Faker) -> None:
+    catalogos = _catalogos(session, faker)
+    datos = _datos(catalogos)
+    reporte = armar_reporte(datos, [_foto()], session)
+    contenido = generar_formato(reporte, [catalogos[0], catalogos[1]], [catalogos[2]])
+
+    importacion = leer_excel(contenido, session)
+    lunes = importacion.datos.dias[0]
+
+    assert importacion.origen == "formato"
+    assert lunes.actividades[0].letra == "A"
+    assert lunes.actividades[0].descripcion == "Descripción original"
+    assert lunes.actividades[0].asignaciones[0].colaborador_id == catalogos[0].id
+    assert lunes.herramientas[0].cantidad == 2
+    assert lunes.observacion == "Observación original"
+    assert importacion.datos.elaborado_por_id == catalogos[4].id
+    assert importacion.datos.revisado_por_id == catalogos[5].id
+    assert lunes.fotos[0].espacio == "A"
+    assert len(importacion.contenidos) == 1
+    assert any("materiales" in aviso for aviso in importacion.avisos)
+
+
+def test_formato_sin_respaldo_avisa_colaborador_desconocido(session: Session, faker: Faker) -> None:
+    catalogos = _catalogos(session, faker)
+    datos = _datos(catalogos)
+    reporte = armar_reporte(datos, [_foto()], session)
+    contenido = generar_formato(reporte, [catalogos[0], catalogos[1]], [catalogos[2]])
+    libro = load_workbook(BytesIO(contenido))
+    libro["Lunes"]["B10"] = faker.unique.name()
+    salida = BytesIO()
+    libro.save(salida)
+
+    importacion = leer_excel(salida.getvalue(), session)
+
+    assert importacion.datos.dias[0].actividades[0].asignaciones == []
+    assert any("No se encontró el colaborador" in aviso for aviso in importacion.avisos)
+
+
+def test_formato_sin_respaldo_lee_bandas_hasta_j(session: Session, faker: Faker) -> None:
+    catalogos = _catalogos(session, faker)
+    datos_dict = _datos(catalogos).model_dump(mode="json")
+    datos_dict["dias"][0]["actividades"] = [
+        {
+            "letra": letra,
+            "descripcion": f"Descripción {letra}",
+            "asignaciones": [],
+        }
+        for letra in "ABCDEFGHIJ"
+    ]
+    datos = ReporteExportar.model_validate(datos_dict)
+    reporte = armar_reporte(datos, [_foto()], session)
+    contenido = generar_formato(reporte, [catalogos[0], catalogos[1]], [catalogos[2]])
+
+    importacion = leer_excel(contenido, session)
+
+    assert [item.letra for item in importacion.datos.dias[0].actividades] == list("ABCDEFGHIJ")
+    assert importacion.datos.dias[0].actividades[-1].descripcion == "Descripción J"
+
+
+def test_libro_vacio_no_se_reconoce(session: Session) -> None:
+    libro = Workbook()
+    salida = BytesIO()
+    libro.save(salida)
+
+    with pytest.raises(InvalidFileError, match="no tiene datos para reabrir"):
+        leer_excel(salida.getvalue(), session)
