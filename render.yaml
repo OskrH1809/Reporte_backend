@@ -1,0 +1,35 @@
+# Blueprint de Render: backend en el plan gratuito, sin guardar reportes.
+# Los valores con `sync: false` se capturan en el panel de Render (no van en Git).
+services:
+  - type: web
+    name: reportes-servicios-api
+    runtime: docker
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: ALMACENAR
+        value: "false"
+      - key: AUTENTICACION
+        value: "true"
+      - key: JWT_SECRETO
+        generateValue: true
+      - key: JWT_MINUTOS
+        value: "480"
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ADMINS_SEMILLA
+        sync: false
+      - key: JORNADA_SEMANA
+        value: "8"
+      - key: JORNADA_SABADO
+        value: "5"
+      - key: MAX_FOTO_MB
+        value: "15"
+      - key: MAX_EXPORTACION_MB
+        value: "60"

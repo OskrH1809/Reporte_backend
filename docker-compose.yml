@@ -1,0 +1,20 @@
+services:
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/app.db}
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      JORNADA_SEMANA: ${JORNADA_SEMANA:-8}
+      JORNADA_SABADO: ${JORNADA_SABADO:-5}
+      MAX_FOTO_MB: ${MAX_FOTO_MB:-15}
+      ALMACENAR: ${ALMACENAR:-true}
+      MAX_EXPORTACION_MB: ${MAX_EXPORTACION_MB:-60}
+    volumes:
+      - ./data:/data
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8090:80"
+    depends_on:
+      - api
